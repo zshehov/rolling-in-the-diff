@@ -7,6 +7,7 @@ use bitvec::bitvec;
 use crate::ChunkNumber;
 use crate::delta_generation::DeltaToken::{Added, Removed, Reused};
 use crate::rolling_checksum::RollingChecksum;
+use crate::strong_hash::StrongHash;
 
 #[derive(Debug)]
 pub enum Error {}
@@ -37,7 +38,7 @@ pub fn generate_delta<R, S>(
 ) -> Result<Delta<S::HashType>, Error> where
     R: RollingChecksum,
     <R as RollingChecksum>::ChecksumType: Eq + Hash,
-    S: super::StrongHash,
+    S: StrongHash,
 {
     let mut reused_chunks = bitvec![0; old_signature.chunk_count];
 
@@ -91,7 +92,7 @@ fn find_reused_chunk<R, S>(
 ) -> Option<ReusedChunkDescriptor<S::HashType>> where
     R: RollingChecksum,
     <R as RollingChecksum>::ChecksumType: Eq + Hash,
-    S: super::StrongHash,
+    S: StrongHash,
 {
     // it's possible that the original file includes a non-chunk-aligned chunk at the end
     // and it can be matched by a less-than-old_signature.chunk_size from the new content
@@ -137,22 +138,11 @@ mod test {
 
     use adler32::RollingAdler32 as actual_adler32;
 
-    use crate::{Signature, StrongHash};
     use crate::rolling_checksum::rolling_adler32::RollingAdler32;
+    use crate::Signature;
+    use crate::strong_hash::md5::Md5Sum;
 
     use super::*;
-
-    struct TestHash {}
-
-    impl StrongHash for TestHash {
-        type HashType = u32;
-
-        // hash is just the sum of the bytes
-        fn hash(data: &[u8]) -> Self::HashType {
-            // sum can only sum to the same type, which makes it unusable for u8 - go for a raw fold here
-            return data.iter().fold(0, |acc, &next| acc + next as u32);
-        }
-    }
 
     #[test]
     fn test_generate_delta() {
@@ -165,12 +155,12 @@ mod test {
 
         let chunk_size = 3;
 
-        let mut signature_map: HashMap<u32, Vec<(u32, ChunkNumber)>> = HashMap::new();
+        let mut signature_map: HashMap<u32, Vec<(<Md5Sum as StrongHash>::HashType, ChunkNumber)>> = HashMap::new();
 
         for (chunk_num, chunk) in old_content.chunks(chunk_size).enumerate() {
             assert_eq!(signature_map.insert(
                 actual_adler32::from_buffer(chunk).hash(),
-                vec![(TestHash::hash(chunk), chunk_num as ChunkNumber)],
+                vec![(Md5Sum::hash(chunk), chunk_num as ChunkNumber)],
             ), None);
         }
 
@@ -188,13 +178,13 @@ mod test {
             10, 11, 200/* <- modified */,
             13         /* <- the forsaken chunk */];
 
-        let delta = generate_delta::<RollingAdler32, TestHash>(signature, &new_content).unwrap();
+        let delta = generate_delta::<RollingAdler32, Md5Sum>(signature, &new_content).unwrap();
 
         let expected_tokens = vec![
             Added(&[21, 22, 23, 1, 2]),
-            Reused(1, TestHash::hash(&[4, 5, 6])),
+            Reused(1, Md5Sum::hash(&[4, 5, 6])),
             Added(&[10, 11, 200]),
-            Reused(4, TestHash::hash(&[13])),
+            Reused(4, Md5Sum::hash(&[13])),
             Removed(0),
             Removed(2),
             Removed(3),

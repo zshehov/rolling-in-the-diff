@@ -10,13 +10,14 @@ use rayon::slice::ParallelSlice;
 use crate::{ChunkNumber, Signature};
 use crate::delta_generation::Error;
 use crate::rolling_checksum::RollingChecksum;
+use crate::strong_hash::StrongHash;
 
 pub fn generate_signature<R, S>(content: &[u8]) -> Result<Signature<R::ChecksumType, S::HashType>, Error> where
     R: RollingChecksum,
     <R as RollingChecksum>::ChecksumType: Eq + Hash,
-    S: super::StrongHash,
+    S: StrongHash,
     <R as RollingChecksum>::ChecksumType: Send + Copy,
-    <S as super::StrongHash>::HashType: Send,
+    <S as StrongHash>::HashType: Send,
 {
     // todo!("estimate chunk size based on content length");
     let chunk_size = 3;
@@ -51,36 +52,25 @@ pub fn generate_signature<R, S>(content: &[u8]) -> Result<Signature<R::ChecksumT
 #[cfg(test)]
 mod test {
     use adler32::RollingAdler32 as actual_adler32;
-    use crate::rolling_checksum::rolling_adler32::RollingAdler32;
 
-    use crate::StrongHash;
+    use crate::rolling_checksum::rolling_adler32::RollingAdler32;
+    use crate::strong_hash::md5::Md5Sum;
+    use crate::strong_hash::StrongHash;
 
     use super::*;
-
-    struct TestHash {}
-
-    impl StrongHash for TestHash {
-        type HashType = u32;
-
-        // hash is just the sum of the bytes
-        fn hash(data: &[u8]) -> Self::HashType {
-            // sum can only sum to the same type, which makes it unusable for u8 - go for a raw fold here
-            return data.iter().fold(0, |acc, &next| acc + next as u32);
-        }
-    }
 
     #[test]
     fn test_generate_signature() {
         let content = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-        let signature = generate_signature::<RollingAdler32, TestHash>(&content).unwrap();
+        let signature = generate_signature::<RollingAdler32, Md5Sum>(&content).unwrap();
 
         for (chunk_number, chunk) in content.chunks(signature.chunk_size).enumerate() {
             let checksum = actual_adler32::from_buffer(chunk).hash();
             assert!(signature.checksum_to_hashes.contains_key(&checksum));
             let chunks = signature.checksum_to_hashes.get(&checksum).unwrap();
 
-            assert!(chunks.contains(&(TestHash::hash(chunk), chunk_number as ChunkNumber)))
+            assert!(chunks.contains(&(Md5Sum::hash(chunk), chunk_number as ChunkNumber)))
         }
     }
 }

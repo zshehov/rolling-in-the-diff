@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt::Debug;
 use std::hash::Hash;
 
 pub mod signature_generation;
@@ -8,14 +7,7 @@ pub mod delta_generation;
 pub mod rolling_checksum;
 pub mod strong_hash;
 
-
 type ChunkNumber = u64;
-
-pub trait StrongHash {
-    type HashType: PartialEq + Debug + Copy;
-
-    fn hash(data: &[u8]) -> Self::HashType;
-}
 
 pub struct Signature<W, S> where
     W: Eq + Hash + PartialEq,
