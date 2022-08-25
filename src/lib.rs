@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
+use serde::{Deserialize, Serialize};
+
 pub mod signature_generation;
 pub mod delta_generation;
 
@@ -9,6 +11,7 @@ pub mod strong_hash;
 
 type ChunkNumber = u64;
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Signature<W, S> where
     W: Eq + Hash + PartialEq,
     S: PartialEq + Copy,
@@ -26,3 +29,4 @@ impl<W, S> Signature<W, S> where
         self.checksum_to_hashes.get(weak_checksum)
     }
 }
+

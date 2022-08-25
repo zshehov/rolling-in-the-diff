@@ -10,3 +10,5 @@ adler32 = "1.2.0"
 bitvec = "1.0.1"
 rayon = "1.5.3"
 md5 = "0.7.0"
+serde = { version = "1.0.144", features = ["derive"] }
+bincode2 = "2.0.1"
