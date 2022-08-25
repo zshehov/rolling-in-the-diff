@@ -1,7 +1,8 @@
 use std::collections::VecDeque;
 use std::io::Read;
 
-use crate::delta_generator::RollingChecksum;
+use crate::delta_generator::{Error, RollingChecksum};
+use crate::delta_generator::Error::NoInput;
 
 struct RollingAdler32<T> where
     T: Read,
@@ -18,26 +19,28 @@ impl<T> RollingChecksum<T> for RollingAdler32<T>
 {
     type ChecksumType = u32;
 
-    fn Create(mut input: T, chunk_size: usize) -> (Option<Self::ChecksumType>, Self) {
+    fn Create(mut input: T, chunk_size: usize) -> Result<(Self::ChecksumType, Self), Error> {
         let mut buff = vec![0; chunk_size];
         match input.read(&mut buff) {
+            Ok(0) => {
+                return Err(NoInput);
+            }
             Ok(read_bytes) => {
                 if read_bytes < chunk_size {
                     buff.truncate(read_bytes);
                 }
                 let checksum = adler32::RollingAdler32::from_buffer(&buff).hash();
-                return (
-                    Some(checksum),
-                    RollingAdler32 {
-                        actual_adler32: adler32::RollingAdler32::from_value(checksum),
-                        ring_bytes: VecDeque::from(buff),
-                        input,
-                        chunk_size,
-                    },
-                );
+                return Ok((checksum,
+                           RollingAdler32 {
+                               actual_adler32: adler32::RollingAdler32::from_value(checksum),
+                               ring_bytes: VecDeque::from(buff),
+                               input,
+                               chunk_size,
+                           }
+                ));
             }
-            Err(_) => {
-                todo!()
+            Err(err) => {
+                Err(Error::FailedRead(err))
             }
         }
     }

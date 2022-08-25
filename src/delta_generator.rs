@@ -1,15 +1,22 @@
+use std::error;
 use std::fmt::Debug;
 use std::io::Read;
 use std::marker::PhantomData;
 
 mod adler32;
 
-pub trait RollingChecksum<T: Read> {
+#[derive(Debug)]
+pub enum Error {
+    NoInput,
+    FailedRead(std::io::Error),
+}
+
+pub trait RollingChecksum<T: Read>: Sized {
     type ChecksumType;
 
     // returns a checksum on the initial chunk_size chunk (chunk's length might be <= chunk_size)
     // and gets the stateful rolling checksum entity ready for rolling
-    fn Create(input: T, chunk_size: usize) -> (Option<Self::ChecksumType>, Self);
+    fn Create(input: T, chunk_size: usize) -> Result<(Self::ChecksumType, Self), Error>;
     // rolls the checksum sliding window forward one byte
     fn RollByte(&mut self) -> Option<Self::ChecksumType>;
 }
