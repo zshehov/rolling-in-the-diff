@@ -1,18 +1,28 @@
 use std::cmp::min;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
 use bitvec::bitvec;
+use serde::{Deserialize, Serialize};
 
 use crate::ChunkNumber;
 use crate::delta_generation::DeltaToken::{Added, Removed, Reused};
 use crate::rolling_checksum::RollingChecksum;
 use crate::strong_hash::StrongHash;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Error {}
 
-#[derive(PartialEq, Eq, Debug)]
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "bruh")
+    }
+}
+
+impl std::error::Error for Error {}
+
+
+#[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
 enum DeltaToken<'a, S> where
     S: /*Decode + Encode + */ PartialEq + Debug,
 {
@@ -26,16 +36,18 @@ enum DeltaToken<'a, S> where
     ),
 }
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Delta<'a, S> where
     S: /*Decode + Encode + */ PartialEq + Debug,
 {
+    #[serde(borrow)]
     tokens: Vec<DeltaToken<'a, S>>,
 }
 
-pub fn generate_delta<R, S>(
-    old_signature: crate::Signature<R::ChecksumType, S::HashType>,
-    new_content: &[u8],
-) -> Result<Delta<S::HashType>, Error> where
+pub fn generate_delta<'a, R, S>(
+    old_signature: &crate::Signature<R::ChecksumType, S::HashType>,
+    new_content: &'a [u8],
+) -> Result<Delta<'a, S::HashType>, Error> where
     R: RollingChecksum,
     <R as RollingChecksum>::ChecksumType: Eq + Hash,
     S: StrongHash,
@@ -178,7 +190,7 @@ mod test {
             10, 11, 200/* <- modified */,
             13         /* <- the forsaken chunk */];
 
-        let delta = generate_delta::<RollingAdler32, Md5Sum>(signature, &new_content).unwrap();
+        let delta = generate_delta::<RollingAdler32, Md5Sum>(&signature, &new_content).unwrap();
 
         let expected_tokens = vec![
             Added(&[21, 22, 23, 1, 2]),

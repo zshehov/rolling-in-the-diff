@@ -20,7 +20,7 @@ pub fn generate_signature<R, S>(content: &[u8]) -> Result<Signature<R::ChecksumT
     <S as StrongHash>::HashType: Send,
 {
     // todo!("estimate chunk size based on content length");
-    let chunk_size = 3;
+    let chunk_size = 4096;
 
     // calculate checksum + hash for each chunk in parallel
     let checksum_hash_tuples: Vec<(usize, R::ChecksumType, S::HashType)> = content.par_chunks(chunk_size).enumerate().map(|(chunk_number, chunk)| {
