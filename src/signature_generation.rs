@@ -8,11 +8,10 @@ use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::slice::ParallelSlice;
 
 use crate::{ChunkNumber, Signature};
-use crate::delta_generation::Error;
 use crate::rolling_checksum::RollingChecksum;
 use crate::strong_hash::StrongHash;
 
-pub fn generate_signature<R, S>(content: &[u8]) -> Result<Signature<R::ChecksumType, S::HashType>, Error> where
+pub fn generate_signature<R, S>(content: &[u8]) -> Signature<R::ChecksumType, S::HashType> where
     R: RollingChecksum,
     <R as RollingChecksum>::ChecksumType: Eq + Hash,
     S: StrongHash,
@@ -42,11 +41,11 @@ pub fn generate_signature<R, S>(content: &[u8]) -> Result<Signature<R::ChecksumT
         signature_map.get_mut(&checksum).unwrap().push((hash, chunk_number as ChunkNumber));
     }
 
-    return Ok(Signature {
+    return Signature {
         checksum_to_hashes: signature_map,
         chunk_size,
         chunk_count,
-    });
+    };
 }
 
 #[cfg(test)]
@@ -63,7 +62,7 @@ mod test {
     fn test_generate_signature() {
         let content = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-        let signature = generate_signature::<RollingAdler32, Md5Sum>(&content).unwrap();
+        let signature = generate_signature::<RollingAdler32, Md5Sum>(&content);
 
         for (chunk_number, chunk) in content.chunks(signature.chunk_size).enumerate() {
             let checksum = actual_adler32::from_buffer(chunk).hash();

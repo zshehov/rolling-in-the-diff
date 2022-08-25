@@ -1,5 +1,5 @@
 use std::cmp::min;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 use std::hash::Hash;
 
 use bitvec::bitvec;
@@ -10,17 +10,6 @@ use crate::ChunkNumber;
 use crate::delta_generation::DeltaToken::{Added, Removed, Reused};
 use crate::rolling_checksum::RollingChecksum;
 use crate::strong_hash::StrongHash;
-
-#[derive(Debug, Clone)]
-pub enum Error {}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "bruh")
-    }
-}
-
-impl std::error::Error for Error {}
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
 enum DeltaToken<'a, S> where
@@ -38,7 +27,7 @@ enum DeltaToken<'a, S> where
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Delta<'a, S> where
-    S: /*Decode + Encode + */ PartialEq + Debug,
+    S: Eq + PartialEq + Debug,
 {
     #[serde(borrow)]
     tokens: Vec<DeltaToken<'a, S>>,
@@ -47,10 +36,11 @@ pub struct Delta<'a, S> where
 pub fn generate_delta<'a, R, S>(
     old_signature: &crate::Signature<R::ChecksumType, S::HashType>,
     new_content: &'a [u8],
-) -> Result<Delta<'a, S::HashType>, Error> where
+) -> Delta<'a, S::HashType> where
     R: RollingChecksum,
     <R as RollingChecksum>::ChecksumType: Eq + Hash,
     S: StrongHash,
+    <S as StrongHash>::HashType: Eq,
 {
     let mut reused_chunks = bitvec![0; old_signature.chunk_count];
 
@@ -90,7 +80,7 @@ pub fn generate_delta<'a, R, S>(
                     delta.tokens.push(Removed(i as ChunkNumber));
                 }
                 progress.finish();
-                return Ok(delta);
+                return delta;
             }
         }
     }

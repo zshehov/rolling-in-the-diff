@@ -60,7 +60,7 @@ fn main() -> anyhow::Result<()> {
 
             let mut signature_file = std::fs::File::create(signature_file)?;
 
-            let signature = generate_signature::<RollingAdler32, Md5Sum>(&old_file_content)?;
+            let signature = generate_signature::<RollingAdler32, Md5Sum>(&old_file_content);
 
             signature_file.write_all(serialize(&signature)?.as_slice())?;
             Ok(())
@@ -89,7 +89,7 @@ fn main() -> anyhow::Result<()> {
 
             let delta = generate_delta::<RollingAdler32, Md5Sum>(
                 &signature,
-                new_file_content.as_slice())?;
+                new_file_content.as_slice());
 
             let mut delta_file = std::fs::File::create(delta_file)?;
 
