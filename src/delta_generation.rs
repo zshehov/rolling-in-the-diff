@@ -53,7 +53,7 @@ pub fn generate_delta<'a, R, S>(
     progress.set_message("Going through new content:");
     let mut reused_count = 0;
     loop {
-        match find_reused_chunk::<R, S>(&old_signature, &new_content[left..]) {
+        match find_reused_chunk::<R, S>(old_signature, &new_content[left..]) {
             Some(reused_chunk) => {
                 if reused_chunk.bytes_until_reused > 0 {
                     delta.tokens.push(Added(&new_content[left..left + reused_chunk.bytes_until_reused]));
@@ -115,7 +115,7 @@ fn find_reused_chunk<R, S>(
     let mut chunk_start = 0;
 
     loop {
-        if chunk_after_end - chunk_start <= 0 {
+        if chunk_after_end - chunk_start == 0 {
             return None;
         }
         let checksum = rolling_checksum.checksum();

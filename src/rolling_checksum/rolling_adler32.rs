@@ -8,9 +8,9 @@ impl RollingChecksum for RollingAdler32 {
     type ChecksumType = u32;
 
     fn new(initial_window: &[u8]) -> Self {
-        return RollingAdler32 {
+        RollingAdler32 {
             actual: adler32::RollingAdler32::from_buffer(initial_window),
-        };
+        }
     }
 
     fn checksum(&self) -> Self::ChecksumType {
