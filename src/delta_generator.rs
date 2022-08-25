@@ -2,6 +2,8 @@ use std::fmt::Debug;
 use std::io::Read;
 use std::marker::PhantomData;
 
+mod adler32;
+
 pub trait RollingChecksum<T: Read> {
     type ChecksumType;
 
