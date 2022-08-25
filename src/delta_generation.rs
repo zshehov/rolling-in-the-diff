@@ -18,7 +18,7 @@ pub trait RollingChecksum {
     fn new(initial_data: &[u8]) -> Self;
     fn checksum(&self) -> Self::ChecksumType;
 
-    fn roll_window(&mut self, old_byte: u8, new_byte: u8);
+    fn slide_window(&mut self, old_byte: u8, new_byte: u8);
 }
 
 pub trait StrongHash {
@@ -109,9 +109,9 @@ fn find_reused_chunk<R, S>(
         if chunk_start + old_signature.chunk_size >= new_content.len() {
             break;
         }
-        rolling_checksum.roll_window(
+        rolling_checksum.slide_window(
             new_content[chunk_start],
-            new_content[chunk_start + old_signature.chunk_size]
+            new_content[chunk_start + old_signature.chunk_size],
         );
         chunk_start += 1;
     }
