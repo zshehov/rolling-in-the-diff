@@ -2,7 +2,7 @@ use std::cmp::min;
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use bitvec::{bitvec};
+use bitvec::bitvec;
 
 use crate::ChunkNumber;
 use crate::delta_generation::DeltaToken::{Added, Removed, Reused};
@@ -11,22 +11,6 @@ mod rolling_adler32;
 
 #[derive(Debug)]
 pub enum Error {}
-
-pub trait RollingChecksum {
-    type ChecksumType;
-
-    fn new(initial_data: &[u8]) -> Self;
-    fn checksum(&self) -> Self::ChecksumType;
-
-    fn push_byte(&mut self, new_byte: u8);
-    fn pop_byte(&mut self, old_byte: u8, bytes_ago: usize);
-}
-
-pub trait StrongHash {
-    type HashType: PartialEq + Debug + Copy;
-
-    fn hash(data: &[u8]) -> Self::HashType;
-}
 
 #[derive(PartialEq, Eq, Debug)]
 enum DeltaToken<'a, S> where
@@ -52,9 +36,9 @@ pub fn generate_delta<R, S>(
     old_signature: crate::Signature<R::ChecksumType, S::HashType>,
     new_content: &[u8],
 ) -> Result<Delta<S::HashType>, Error> where
-    R: RollingChecksum,
-    <R as RollingChecksum>::ChecksumType: Eq + Hash,
-    S: StrongHash,
+    R: super::RollingChecksum,
+    <R as super::RollingChecksum>::ChecksumType: Eq + Hash,
+    S: super::StrongHash,
 {
     let mut reused_chunks = bitvec![0; old_signature.chunk_count];
 
@@ -106,9 +90,9 @@ fn find_reused_chunk<R, S>(
     old_signature: &crate::Signature<R::ChecksumType, S::HashType>,
     new_content: &[u8],
 ) -> Option<ReusedChunkDescriptor<S::HashType>> where
-    R: RollingChecksum,
-    <R as RollingChecksum>::ChecksumType: Eq + Hash,
-    S: StrongHash,
+    R: super::RollingChecksum,
+    <R as super::RollingChecksum>::ChecksumType: Eq + Hash,
+    S: super::StrongHash,
 {
     // it's possible that the original file includes a non-chunk-aligned chunk at the end
     // and it can be matched by a less-than-old_signature.chunk_size from the new content
@@ -154,7 +138,7 @@ mod test {
 
     use adler32::RollingAdler32 as actual_adler32;
 
-    use crate::Signature;
+    use crate::{Signature, StrongHash};
 
     use super::*;
 
@@ -219,7 +203,9 @@ mod test {
         assert_eq!(delta.tokens.len(), expected_tokens.len());
         zip(delta.tokens.iter(), expected_tokens.iter()).
             for_each(
-                |(actual, expected)| assert_eq!(actual, expected)
+                |(actual, expected)| {
+                    assert_eq!(actual, expected)
+                }
             );
     }
 }

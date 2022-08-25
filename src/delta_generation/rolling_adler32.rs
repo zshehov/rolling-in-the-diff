@@ -1,4 +1,4 @@
-use crate::delta_generation::RollingChecksum;
+use crate::RollingChecksum;
 
 pub(crate) struct RollingAdler32 {
     actual: adler32::RollingAdler32,
@@ -45,6 +45,7 @@ mod tests {
             left += 1;
         }
 
+        // slide the left part of the window until all the data is consumed
         while left < data.len() {
             assert_eq!(rolling_checksum.checksum(), adler32::adler32(&data[left..]).unwrap());
             rolling_checksum.pop_byte(data[left], data.len() - left);
