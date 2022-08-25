@@ -1,10 +1,13 @@
+use std::cmp::min;
 use std::fmt::Debug;
 use std::hash::Hash;
+
+use bitvec::{bitvec};
 
 use crate::ChunkNumber;
 use crate::delta_generation::DeltaToken::{Added, Removed, Reused};
 
-mod adler32;
+mod rolling_adler32;
 
 #[derive(Debug)]
 pub enum Error {}
@@ -15,7 +18,8 @@ pub trait RollingChecksum {
     fn new(initial_data: &[u8]) -> Self;
     fn checksum(&self) -> Self::ChecksumType;
 
-    fn slide_window(&mut self, old_byte: u8, new_byte: u8);
+    fn push_byte(&mut self, new_byte: u8);
+    fn pop_byte(&mut self, old_byte: u8, bytes_ago: usize);
 }
 
 pub trait StrongHash {
@@ -24,6 +28,7 @@ pub trait StrongHash {
     fn hash(data: &[u8]) -> Self::HashType;
 }
 
+#[derive(PartialEq, Eq, Debug)]
 enum DeltaToken<'a, S> where
     S: /*Decode + Encode + */ PartialEq + Debug,
 {
@@ -51,25 +56,26 @@ pub fn generate_delta<R, S>(
     <R as RollingChecksum>::ChecksumType: Eq + Hash,
     S: StrongHash,
 {
-    let mut reused_chunks = bit_set::BitVec::with_capacity(old_signature.chunk_count);
+    let mut reused_chunks = bitvec![0; old_signature.chunk_count];
+
     let mut delta = Delta { tokens: Vec::with_capacity(old_signature.chunk_count) };
     let mut left = 0;
 
     loop {
         match find_reused_chunk::<R, S>(&old_signature, &new_content[left..]) {
-            Some((bytes_until_reused, chunk_number, reused_strong_hash)) => {
-                if bytes_until_reused > 0 {
-                    delta.tokens.push(Added(&new_content[left..left + bytes_until_reused]));
-                    left += bytes_until_reused;
+            Some(reused_chunk) => {
+                if reused_chunk.bytes_until_reused > 0 {
+                    delta.tokens.push(Added(&new_content[left..left + reused_chunk.bytes_until_reused]));
+                    left += reused_chunk.bytes_until_reused;
                 }
-                delta.tokens.push(Reused(chunk_number, reused_strong_hash));
-                left += old_signature.chunk_size;
-                if chunk_number >= usize(old_signature.chunk_count) {
+                delta.tokens.push(Reused(reused_chunk.chunk_number, reused_chunk.chunk_strong_hash));
+                left += reused_chunk.reused_chunk_size;
+                if reused_chunk.chunk_number >= old_signature.chunk_count as ChunkNumber {
                     // that might very well mean an invalid signature file
                     // TODO: decide on how should this be handled - for now just hide this error
                     continue;
                 }
-                reused_chunks.set(usize(chunk_number), true);
+                reused_chunks.set(reused_chunk.chunk_number as usize, true);
             }
             None => {
                 // couldn't find a single match until the end of the new content - finish up the delta
@@ -78,10 +84,10 @@ pub fn generate_delta<R, S>(
                 }
                 // fill up all the removed chunks at the end
                 for i in 0..old_signature.chunk_count {
-                    if let Some(true) = reused_chunks.get(i) {
+                    if let Some(&true) = reused_chunks.get(i).as_deref() {
                         continue;
                     }
-                    delta.tokens.push(Removed(ChunkNumber(i)));
+                    delta.tokens.push(Removed(i as ChunkNumber));
                 }
                 return Ok(delta);
             }
@@ -89,46 +95,133 @@ pub fn generate_delta<R, S>(
     }
 }
 
+struct ReusedChunkDescriptor<T> {
+    bytes_until_reused: usize,
+    reused_chunk_size: usize,
+    chunk_number: ChunkNumber,
+    chunk_strong_hash: T,
+}
+
 fn find_reused_chunk<R, S>(
     old_signature: &crate::Signature<R::ChecksumType, S::HashType>,
     new_content: &[u8],
-) -> Option<(usize, ChunkNumber, S::HashType)> where
+) -> Option<ReusedChunkDescriptor<S::HashType>> where
     R: RollingChecksum,
     <R as RollingChecksum>::ChecksumType: Eq + Hash,
     S: StrongHash,
 {
-    if old_signature.chunk_size > new_content.len() {
-        // there isn't a whole chunk in the new content
-        return None;
-    }
+    // it's possible that the original file includes a non-chunk-aligned chunk at the end
+    // and it can be matched by a less-than-old_signature.chunk_size from the new content
+    let mut chunk_after_end = min(old_signature.chunk_size, new_content.len());
 
-    let mut rolling_checksum = R::new(&new_content[..old_signature.chunk_size]);
+    let mut rolling_checksum = R::new(&new_content[..chunk_after_end]);
     let mut chunk_start = 0;
 
     loop {
+        if chunk_after_end - chunk_start <= 0 {
+            return None;
+        }
         let checksum = rolling_checksum.checksum();
 
         if let Some(strong_hashes) = old_signature.quick_query(&checksum) {
-            let hash = S::hash(&new_content[chunk_start..chunk_start + old_signature.chunk_size]);
+            let hash = S::hash(&new_content[chunk_start..chunk_after_end]);
 
             for (signature_hash, chunk_number) in strong_hashes {
                 let signature_hash = *signature_hash;
                 if signature_hash == hash {
-                    return Some((chunk_start, *chunk_number, signature_hash));
+                    return Some(ReusedChunkDescriptor {
+                        bytes_until_reused: chunk_start,
+                        reused_chunk_size: chunk_after_end - chunk_start,
+                        chunk_number: *chunk_number,
+                        chunk_strong_hash: signature_hash,
+                    });
                 }
             }
         }
-
-        if chunk_start + old_signature.chunk_size >= new_content.len() {
-            break;
+        rolling_checksum.pop_byte(new_content[chunk_start], chunk_after_end - chunk_start);
+        if chunk_after_end < new_content.len() {
+            rolling_checksum.push_byte(new_content[chunk_after_end]);
+            chunk_after_end += 1;
         }
-        rolling_checksum.slide_window(
-            new_content[chunk_start],
-            new_content[chunk_start + old_signature.chunk_size],
-        );
         chunk_start += 1;
     }
-
-    return None;
 }
+
+#[cfg(test)]
+mod test {
+    use std::collections::HashMap;
+    use std::iter::zip;
+
+    use adler32::RollingAdler32 as actual_adler32;
+
+    use crate::Signature;
+
+    use super::*;
+
+    struct TestHash {}
+
+    impl StrongHash for TestHash {
+        type HashType = u32;
+
+        // hash is just the sum of the bytes
+        fn hash(data: &[u8]) -> Self::HashType {
+            // sum can only sum to the same type, which makes it unusable for u8 - go for a raw fold here
+            return data.iter().fold(0, |acc, &next| acc + next as u32);
+        }
+    }
+
+    #[test]
+    fn test_generate_delta() {
+        let old_content = [
+            1, 2, 3   /* <- chunk 0 */,
+            4, 5, 6   /* <- chunk 1 */,
+            7, 8, 9   /* <- chunk 2 */,
+            10, 11, 12/* <- chunk 3 */,
+            13        /* <- chunk 4 */];
+
+        let chunk_size = 3;
+
+        let mut signature_map: HashMap<u32, Vec<(u32, ChunkNumber)>> = HashMap::new();
+
+        for (chunk_num, chunk) in old_content.chunks(chunk_size).enumerate() {
+            assert_eq!(signature_map.insert(
+                actual_adler32::from_buffer(chunk).hash(),
+                vec![(TestHash::hash(chunk), chunk_num as ChunkNumber)],
+            ), None);
+        }
+
+        let signature = Signature {
+            checksum_to_hashes: signature_map,
+            chunk_count: old_content.chunks(chunk_size).len(),
+            chunk_size,
+        };
+
+        let new_content = [
+            21, 22, 23 /* <- totally new */,
+            1, 2 /*, 3,   <- modified with deletion */,
+            4, 5, 6    /* <- reused */,
+            /*7, 8, 9     <- removed */
+            10, 11, 200/* <- modified */,
+            13         /* <- the forsaken chunk */];
+
+        let delta = generate_delta::<rolling_adler32::RollingAdler32, TestHash>(signature, &new_content).unwrap();
+
+        let expected_tokens = vec![
+            Added(&[21, 22, 23, 1, 2]),
+            Reused(1, TestHash::hash(&[4, 5, 6])),
+            Added(&[10, 11, 200]),
+            Reused(4, TestHash::hash(&[13])),
+            Removed(0),
+            Removed(2),
+            Removed(3),
+        ];
+
+        assert_eq!(delta.tokens.len(), expected_tokens.len());
+        zip(delta.tokens.iter(), expected_tokens.iter()).
+            for_each(
+                |(actual, expected)| assert_eq!(actual, expected)
+            );
+    }
+}
+
 
