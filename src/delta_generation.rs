@@ -22,7 +22,6 @@ impl Display for Error {
 
 impl std::error::Error for Error {}
 
-
 #[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
 enum DeltaToken<'a, S> where
     S: /*Decode + Encode + */ PartialEq + Debug,

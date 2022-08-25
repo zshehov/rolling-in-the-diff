@@ -1,9 +1,9 @@
-use std::error::Error;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 
 use bincode2::{deserialize, serialize};
 use clap::Parser;
+use log::info;
 
 use rolling_in_the_diff::delta_generation::generate_delta;
 use rolling_in_the_diff::rolling_checksum::rolling_adler32::RollingAdler32;
@@ -44,12 +44,13 @@ enum Commands {
     },
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> anyhow::Result<()> {
+    env_logger::init();
     let cli: Cli = Cli::parse();
 
     return match cli.command {
         Commands::Signature { old_file, signature_file } => {
-            println!("Generating signature of {} into {}",
+            info!("Generating signature of {} into {}",
                      old_file.display(),
                      signature_file.display());
 
@@ -65,7 +66,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             Ok(())
         }
         Commands::Delta { signature_file, new_file, delta_file } => {
-            println!("Generating the delta between {} and {} into {}",
+            info!("Generating the delta between {} and {} into {}",
                      signature_file.display(),
                      new_file.display(),
                      delta_file.display(),
@@ -95,6 +96,6 @@ fn main() -> Result<(), Box<dyn Error>> {
             delta_file.write_all(serialize(&delta)?.as_slice())?;
             Ok(())
         }
-    }
+    };
 }
 

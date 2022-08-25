@@ -14,3 +14,6 @@ serde = { version = "1.0.144", features = ["derive"] }
 bincode2 = "2.0.1"
 clap = { version = "3.2.17", features = ["derive"] }
 indicatif = "0.17.0-rc.11"
+log = "0.4.17"
+env_logger = "0.9.0"
+anyhow = "1.0.62"
