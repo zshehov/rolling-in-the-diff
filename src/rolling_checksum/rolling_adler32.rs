@@ -1,4 +1,4 @@
-use crate::RollingChecksum;
+use crate::rolling_checksum::RollingChecksum;
 
 pub(crate) struct RollingAdler32 {
     actual: adler32::RollingAdler32,

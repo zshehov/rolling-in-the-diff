@@ -5,18 +5,11 @@ use std::hash::Hash;
 pub mod signature_generation;
 pub mod delta_generation;
 
+pub mod rolling_checksum;
+pub mod strong_hash;
+
 
 type ChunkNumber = u64;
-
-pub trait RollingChecksum {
-    type ChecksumType;
-
-    fn new(initial_data: &[u8]) -> Self;
-    fn checksum(&self) -> Self::ChecksumType;
-
-    fn push_byte(&mut self, new_byte: u8);
-    fn pop_byte(&mut self, old_byte: u8, bytes_ago: usize);
-}
 
 pub trait StrongHash {
     type HashType: PartialEq + Debug + Copy;

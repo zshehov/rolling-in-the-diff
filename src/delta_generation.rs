@@ -6,8 +6,7 @@ use bitvec::bitvec;
 
 use crate::ChunkNumber;
 use crate::delta_generation::DeltaToken::{Added, Removed, Reused};
-
-pub(crate) mod rolling_adler32;
+use crate::rolling_checksum::RollingChecksum;
 
 #[derive(Debug)]
 pub enum Error {}
@@ -36,8 +35,8 @@ pub fn generate_delta<R, S>(
     old_signature: crate::Signature<R::ChecksumType, S::HashType>,
     new_content: &[u8],
 ) -> Result<Delta<S::HashType>, Error> where
-    R: super::RollingChecksum,
-    <R as super::RollingChecksum>::ChecksumType: Eq + Hash,
+    R: RollingChecksum,
+    <R as RollingChecksum>::ChecksumType: Eq + Hash,
     S: super::StrongHash,
 {
     let mut reused_chunks = bitvec![0; old_signature.chunk_count];
@@ -90,8 +89,8 @@ fn find_reused_chunk<R, S>(
     old_signature: &crate::Signature<R::ChecksumType, S::HashType>,
     new_content: &[u8],
 ) -> Option<ReusedChunkDescriptor<S::HashType>> where
-    R: super::RollingChecksum,
-    <R as super::RollingChecksum>::ChecksumType: Eq + Hash,
+    R: RollingChecksum,
+    <R as RollingChecksum>::ChecksumType: Eq + Hash,
     S: super::StrongHash,
 {
     // it's possible that the original file includes a non-chunk-aligned chunk at the end
@@ -139,6 +138,7 @@ mod test {
     use adler32::RollingAdler32 as actual_adler32;
 
     use crate::{Signature, StrongHash};
+    use crate::rolling_checksum::rolling_adler32::RollingAdler32;
 
     use super::*;
 
@@ -188,7 +188,7 @@ mod test {
             10, 11, 200/* <- modified */,
             13         /* <- the forsaken chunk */];
 
-        let delta = generate_delta::<rolling_adler32::RollingAdler32, TestHash>(signature, &new_content).unwrap();
+        let delta = generate_delta::<RollingAdler32, TestHash>(signature, &new_content).unwrap();
 
         let expected_tokens = vec![
             Added(&[21, 22, 23, 1, 2]),

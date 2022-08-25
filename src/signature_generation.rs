@@ -9,12 +9,13 @@ use rayon::slice::ParallelSlice;
 
 use crate::{ChunkNumber, Signature};
 use crate::delta_generation::Error;
+use crate::rolling_checksum::RollingChecksum;
 
 pub fn generate_signature<R, S>(content: &[u8]) -> Result<Signature<R::ChecksumType, S::HashType>, Error> where
-    R: super::RollingChecksum,
-    <R as super::RollingChecksum>::ChecksumType: Eq + Hash,
+    R: RollingChecksum,
+    <R as RollingChecksum>::ChecksumType: Eq + Hash,
     S: super::StrongHash,
-    <R as super::RollingChecksum>::ChecksumType: Send + Copy,
+    <R as RollingChecksum>::ChecksumType: Send + Copy,
     <S as super::StrongHash>::HashType: Send,
 {
     // todo!("estimate chunk size based on content length");
@@ -50,6 +51,7 @@ pub fn generate_signature<R, S>(content: &[u8]) -> Result<Signature<R::ChecksumT
 #[cfg(test)]
 mod test {
     use adler32::RollingAdler32 as actual_adler32;
+    use crate::rolling_checksum::rolling_adler32::RollingAdler32;
 
     use crate::StrongHash;
 
@@ -71,7 +73,7 @@ mod test {
     fn test_generate_signature() {
         let content = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-        let signature = generate_signature::<crate::delta_generation::rolling_adler32::RollingAdler32, TestHash>(&content).unwrap();
+        let signature = generate_signature::<RollingAdler32, TestHash>(&content).unwrap();
 
         for (chunk_number, chunk) in content.chunks(signature.chunk_size).enumerate() {
             let checksum = actual_adler32::from_buffer(chunk).hash();
