@@ -9,7 +9,7 @@ pub mod delta_generation;
 pub mod rolling_checksum;
 pub mod strong_hash;
 
-type ChunkNumber = u64;
+pub type ChunkNumber = u64;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Signature<W, S> where

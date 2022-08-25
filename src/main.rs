@@ -3,6 +3,7 @@ use std::path::PathBuf;
 
 use bincode2::{deserialize, serialize};
 use clap::Parser;
+use env_logger::Env;
 use log::info;
 
 use rolling_in_the_diff::delta_generation::generate_delta;
@@ -45,7 +46,7 @@ enum Commands {
 }
 
 fn main() -> anyhow::Result<()> {
-    env_logger::init();
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
     let cli: Cli = Cli::parse();
 
     return match cli.command {

@@ -4,6 +4,7 @@ use std::hash::Hash;
 
 use bitvec::bitvec;
 use indicatif::{ProgressBar, ProgressStyle};
+use log::{error, info};
 use serde::{Deserialize, Serialize};
 
 use crate::ChunkNumber;
@@ -50,6 +51,7 @@ pub fn generate_delta<'a, R, S>(
     let progress = ProgressBar::new(new_content.len() as u64);
     progress.set_style(ProgressStyle::default_bar().template("{msg} {bar} {bytes}/{total_bytes}").unwrap());
     progress.set_message("Going through new content:");
+    let mut reused_count = 0;
     loop {
         match find_reused_chunk::<R, S>(&old_signature, &new_content[left..]) {
             Some(reused_chunk) => {
@@ -61,10 +63,13 @@ pub fn generate_delta<'a, R, S>(
                 left += reused_chunk.reused_chunk_size;
                 if reused_chunk.chunk_number >= old_signature.chunk_count as ChunkNumber {
                     // that might very well mean an invalid signature file
-                    // TODO: decide on how should this be handled - for now just hide this error
+                    error!("signature contains a chunk number out of the chunk count: {} >= {}",
+                        reused_chunk.chunk_number,
+                        old_signature.chunk_count);
                     continue;
                 }
                 reused_chunks.set(reused_chunk.chunk_number as usize, true);
+                reused_count += 1;
                 progress.set_position(left as u64);
             }
             None => {
@@ -80,6 +85,7 @@ pub fn generate_delta<'a, R, S>(
                     delta.tokens.push(Removed(i as ChunkNumber));
                 }
                 progress.finish();
+                info!("reused chunks: {}", reused_count);
                 return delta;
             }
         }
@@ -185,7 +191,7 @@ mod test {
             10, 11, 200/* <- modified */,
             13         /* <- the forsaken chunk */];
 
-        let delta = generate_delta::<RollingAdler32, Md5Sum>(&signature, &new_content).unwrap();
+        let delta = generate_delta::<RollingAdler32, Md5Sum>(&signature, &new_content);
 
         let expected_tokens = vec![
             Added(&[21, 22, 23, 1, 2]),

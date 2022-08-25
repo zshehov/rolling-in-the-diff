@@ -1,9 +1,7 @@
-// TODO: implement marshaling to binary
-// probably use https://github.com/bincode-org/bincode
-
 use std::collections::HashMap;
 use std::hash::Hash;
 
+use log::info;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::slice::ParallelSlice;
 
@@ -18,15 +16,23 @@ pub fn generate_signature<R, S>(content: &[u8]) -> Signature<R::ChecksumType, S:
     <R as RollingChecksum>::ChecksumType: Send + Copy,
     <S as StrongHash>::HashType: Send,
 {
-    // todo!("estimate chunk size based on content length");
-    let chunk_size = 4096;
+    let chunk_size = determine_chunk_size::<R::ChecksumType, S::HashType>(content.len());
+    info!("content len: {} chunk count: {}; chunk size: {}",
+        content.len(),
+        (content.len() as f64/(chunk_size as f64)).ceil(),
+        chunk_size);
 
     // calculate checksum + hash for each chunk in parallel
-    let checksum_hash_tuples: Vec<(usize, R::ChecksumType, S::HashType)> = content.par_chunks(chunk_size).enumerate().map(|(chunk_number, chunk)| {
-        let checksum = R::new(chunk).checksum();
-        let hash = S::hash(chunk);
-        return (chunk_number, checksum, hash);
-    }).collect();
+    let checksum_hash_tuples: Vec<(usize, R::ChecksumType, S::HashType)> =
+        content
+            .par_chunks(chunk_size)
+            .enumerate()
+            .map(|(chunk_number, chunk)| {
+                let checksum = R::new(chunk).checksum();
+                let hash = S::hash(chunk);
+                return (chunk_number, checksum, hash);
+            })
+            .collect();
 
     let mut signature_map: HashMap<R::ChecksumType, Vec<(S::HashType, ChunkNumber)>> =
         HashMap::with_capacity(checksum_hash_tuples.len());
@@ -46,6 +52,47 @@ pub fn generate_signature<R, S>(content: &[u8]) -> Signature<R::ChecksumType, S:
         chunk_size,
         chunk_count,
     };
+}
+
+const MAGIC_CHUNK_COUNT: usize = (1 << 10) << 2;
+
+///
+/// Determines a "good" chunk size based on the content length
+///
+/// ```
+/// use rolling_in_the_diff::signature_generation::determine_chunk_size;
+/// use rolling_in_the_diff::ChunkNumber;
+///
+///
+/// // when the overhead of hashes is bigger than the content
+/// assert_eq!(determine_chunk_size::<u64, u64>(6), 6);
+///
+/// let overhead = 1 + 1 + std::mem::size_of::<ChunkNumber>();
+/// let content_len = 20 * overhead;
+/// // can fit 20 overheads -> the next smaller power of 2 == 16
+/// assert_eq!(determine_chunk_size::<u8, u8>(content_len), content_len / 16);
+/// ```
+pub fn determine_chunk_size<R, S>(content_len: usize) -> usize
+{
+    let overhead_per_chunk = std::mem::size_of::<R>() + std::mem::size_of::<S>() + std::mem::size_of::<ChunkNumber>();
+
+    let mut chunk_count = MAGIC_CHUNK_COUNT;
+    while chunk_count > 0 {
+        let overhead = chunk_count * overhead_per_chunk;
+        if overhead >= content_len {
+            chunk_count >>= 1;
+        } else {
+            break;
+        }
+    }
+    if chunk_count == 0 {
+        // the overhead of having signatures will defeat the purpose of having multiple chunks
+        // just having 1 chunk will be better
+        return content_len;
+    }
+
+    // TODO: maybe have some chunk_size cap here? For 10GB and MAGIC_CHUNK_COUNT=4k -> 2.5MB seems reasonable for now
+    return content_len / chunk_count;
 }
 
 #[cfg(test)]
