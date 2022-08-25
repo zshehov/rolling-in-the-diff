@@ -7,7 +7,7 @@ use bitvec::bitvec;
 use crate::ChunkNumber;
 use crate::delta_generation::DeltaToken::{Added, Removed, Reused};
 
-mod rolling_adler32;
+pub(crate) mod rolling_adler32;
 
 #[derive(Debug)]
 pub enum Error {}
