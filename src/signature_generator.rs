@@ -6,13 +6,13 @@ pub mod signature_generator {
     pub trait WeakChecksum {
         type ChecksumType: PartialEq + Debug;
 
-        fn Checksum(data: &[u8]) -> Self::ChecksumType;
+        fn checksum(data: &[u8]) -> Self::ChecksumType;
     }
 
     pub trait StrongHash {
         type HashType: PartialEq + Debug;
 
-        fn Hash(data: &[u8]) -> Self::HashType;
+        fn hash(data: &[u8]) -> Self::HashType;
     }
 
     // TODO: implement marshaling to binary

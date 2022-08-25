@@ -4,71 +4,27 @@ use std::io::Read;
 use crate::delta_generator::{Error, RollingChecksum};
 use crate::delta_generator::Error::NoInput;
 
-struct RollingAdler32<T> where
-    T: Read,
-{
-    actual_adler32: adler32::RollingAdler32,
-    ring_bytes: VecDeque<u8>,
-    input: T,
-    chunk_size: usize,
+struct RollingAdler32 {
+    actual: adler32::RollingAdler32,
+    window_size: usize,
 }
 
-impl<T> RollingChecksum<T> for RollingAdler32<T>
-// TODO: why is this "where" required?
-    where T: Read,
-{
+impl RollingChecksum for RollingAdler32 {
     type ChecksumType = u32;
 
-    fn Create(mut input: T, chunk_size: usize) -> Result<(Self::ChecksumType, Self), Error> {
-        let mut buff = vec![0; chunk_size];
-        match input.read(&mut buff) {
-            Ok(0) => {
-                return Err(NoInput);
-            }
-            Ok(read_bytes) => {
-                if read_bytes < chunk_size {
-                    buff.truncate(read_bytes);
-                }
-                let checksum = adler32::RollingAdler32::from_buffer(&buff).hash();
-                return Ok((checksum,
-                           RollingAdler32 {
-                               actual_adler32: adler32::RollingAdler32::from_value(checksum),
-                               ring_bytes: VecDeque::from(buff),
-                               input,
-                               chunk_size,
-                           }
-                ));
-            }
-            Err(err) => {
-                Err(Error::FailedRead(err))
-            }
-        }
+    fn new(initial_window: &[u8]) -> Self {
+        return RollingAdler32 {
+            actual: adler32::RollingAdler32::from_buffer(initial_window),
+            window_size: initial_window.len(),
+        };
     }
 
-    fn RollByte(&mut self) -> Option<Self::ChecksumType> {
-        let mut single_byte = [0];
-        return match self.ring_bytes.pop_front() {
-            Some(oldest_byte) => {
-                self.actual_adler32.remove(self.ring_bytes.len() + 1, oldest_byte);
+    fn checksum(&self) -> Self::ChecksumType {
+        self.actual.hash()
+    }
 
-                match self.input.read(&mut single_byte) {
-                    Ok(1) => {
-                        self.ring_bytes.push_back(single_byte[0]);
-                        self.actual_adler32.update(single_byte[0]);
-                    }
-                    Ok(_) => {
-                        // when the reader is empty there are some ring_bytes remaining that have to be drained
-                    }
-                    Err(_) => {
-                        // TODO: log the error when logger is available - even better return Result
-                        return None;
-                    }
-                };
-                Some(self.actual_adler32.hash())
-            }
-            None => {
-                return None;
-            }
-        };
+    fn roll_window(&mut self, old_byte: u8, new_byte: u8) {
+        self.actual.remove(self.window_size, old_byte);
+        self.actual.update(new_byte);
     }
 }
