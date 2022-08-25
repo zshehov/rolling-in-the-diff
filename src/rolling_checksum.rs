@@ -1,4 +1,4 @@
-pub(crate) mod rolling_adler32;
+pub mod rolling_adler32;
 
 pub trait RollingChecksum {
     type ChecksumType;

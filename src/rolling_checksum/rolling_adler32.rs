@@ -1,6 +1,6 @@
-use crate::rolling_checksum::RollingChecksum;
+use super::RollingChecksum;
 
-pub(crate) struct RollingAdler32 {
+pub struct RollingAdler32 {
     actual: adler32::RollingAdler32,
 }
 

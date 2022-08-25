@@ -1,6 +1,6 @@
 use crate::strong_hash::StrongHash;
 
-pub(crate) struct Md5Sum {}
+pub struct Md5Sum {}
 
 impl StrongHash for Md5Sum {
     type HashType = [u8; 16];
