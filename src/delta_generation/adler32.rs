@@ -1,8 +1,4 @@
-use std::collections::VecDeque;
-use std::io::Read;
-
-use crate::delta_generator::{Error, RollingChecksum};
-use crate::delta_generator::Error::NoInput;
+use crate::delta_generation::RollingChecksum;
 
 struct RollingAdler32 {
     actual: adler32::RollingAdler32,

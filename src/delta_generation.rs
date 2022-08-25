@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 
 use crate::chunk_number;
-use crate::delta_generator::DeltaToken::{Added, Reused};
+use crate::delta_generation::DeltaToken::{Added, Reused};
 
 mod adler32;
 

@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 
-pub mod signature_generator;
-pub mod delta_generator;
+pub mod signature_generation;
+pub mod delta_generation;
 
 
 type chunk_number = u64;
