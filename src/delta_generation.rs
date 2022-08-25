@@ -1,16 +1,13 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use crate::chunk_number;
-use crate::delta_generation::DeltaToken::{Added, Reused};
+use crate::ChunkNumber;
+use crate::delta_generation::DeltaToken::{Added, Removed, Reused};
 
 mod adler32;
 
 #[derive(Debug)]
-pub enum Error {
-    NoInput,
-    FailedRead(std::io::Error),
-}
+pub enum Error {}
 
 pub trait RollingChecksum {
     type ChecksumType;
@@ -31,12 +28,12 @@ enum DeltaToken<'a, S> where
     S: /*Decode + Encode + */ PartialEq + Debug,
 {
     Reused(
-        chunk_number /* chunk number in old file */,
+        ChunkNumber /* chunk number in old file */,
         S /* strong hash over the content for the patch operation to use*/,
     ),
     Added(&'a [u8] /* new data */),
     Removed(
-        chunk_number,
+        ChunkNumber,
     ),
 }
 
@@ -54,6 +51,7 @@ pub fn generate_delta<R, S>(
     <R as RollingChecksum>::ChecksumType: Eq + Hash,
     S: StrongHash,
 {
+    let mut reused_chunks = bit_set::BitVec::with_capacity(old_signature.chunk_count);
     let mut delta = Delta { tokens: Vec::with_capacity(old_signature.chunk_count) };
     let mut left = 0;
 
@@ -66,10 +64,25 @@ pub fn generate_delta<R, S>(
                 }
                 delta.tokens.push(Reused(chunk_number, reused_strong_hash));
                 left += old_signature.chunk_size;
+                if chunk_number >= usize(old_signature.chunk_count) {
+                    // that might very well mean an invalid signature file
+                    // TODO: decide on how should this be handled - for now just hide this error
+                    continue;
+                }
+                reused_chunks.set(usize(chunk_number), true);
             }
             None => {
                 // couldn't find a single match until the end of the new content - finish up the delta
-                delta.tokens.push(Added(&new_content[left..]));
+                if left < new_content.len() - 1 {
+                    delta.tokens.push(Added(&new_content[left..]));
+                }
+                // fill up all the removed chunks at the end
+                for i in 0..old_signature.chunk_count {
+                    if let Some(true) = reused_chunks.get(i) {
+                        continue;
+                    }
+                    delta.tokens.push(Removed(ChunkNumber(i)));
+                }
                 return Ok(delta);
             }
         }
@@ -79,7 +92,7 @@ pub fn generate_delta<R, S>(
 fn find_reused_chunk<R, S>(
     old_signature: &crate::Signature<R::ChecksumType, S::HashType>,
     new_content: &[u8],
-) -> Option<(usize, chunk_number, S::HashType)> where
+) -> Option<(usize, ChunkNumber, S::HashType)> where
     R: RollingChecksum,
     <R as RollingChecksum>::ChecksumType: Eq + Hash,
     S: StrongHash,

@@ -5,7 +5,7 @@ pub mod signature_generation;
 pub mod delta_generation;
 
 
-type chunk_number = u64;
+type ChunkNumber = u64;
 
 // the big question is here:
 // How big can Signature get?
@@ -19,7 +19,7 @@ pub struct Signature<W, S> where
     W: Eq + Hash + PartialEq,
     S: PartialEq + Copy,
 {
-    checksum_to_hashes: HashMap<W, Vec<(S, chunk_number)>>,
+    checksum_to_hashes: HashMap<W, Vec<(S, ChunkNumber)>>,
     chunk_size: usize,
     chunk_count: usize,
 }
@@ -28,7 +28,7 @@ impl<W, S> Signature<W, S> where
     W: Eq + Hash + PartialEq,
     S: PartialEq + Copy,
 {
-    fn quick_query(&self, weak_checksum: &W) -> Option<&Vec<(S, chunk_number)>> {
+    fn quick_query(&self, weak_checksum: &W) -> Option<&Vec<(S, ChunkNumber)>> {
         self.checksum_to_hashes.get(weak_checksum)
     }
 }
