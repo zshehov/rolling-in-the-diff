@@ -18,22 +18,32 @@ impl<T> RollingChecksum<T> for RollingAdler32<T>
 {
     type ChecksumType = u32;
 
-    fn Create(input: T, chunk_size: usize) -> (Option<Self::ChecksumType>, Self) {
-        return (
-            Some(123),
-            RollingAdler32 {
-                // TODO: actually create the RollingAdler32 with a buffer read from the input
-                actual_adler32: adler32::RollingAdler32::from_buffer(),
-                // TODO: actually create the VecDeque with the first chunk bytes
-                ring_bytes: VecDeque::with_capacity(chunk_size),
-                input,
-                chunk_size,
-            },
-        );
+    fn Create(mut input: T, chunk_size: usize) -> (Option<Self::ChecksumType>, Self) {
+        let mut buff = vec![0; chunk_size];
+        match input.read(&mut buff) {
+            Ok(read_bytes) => {
+                if read_bytes < chunk_size {
+                    buff.truncate(read_bytes);
+                }
+                let checksum = adler32::RollingAdler32::from_buffer(&buff).hash();
+                return (
+                    Some(checksum),
+                    RollingAdler32 {
+                        actual_adler32: adler32::RollingAdler32::from_value(checksum),
+                        ring_bytes: VecDeque::from(buff),
+                        input,
+                        chunk_size,
+                    },
+                );
+            }
+            Err(_) => {
+                todo!()
+            }
+        }
     }
 
     fn RollByte(&mut self) -> Option<Self::ChecksumType> {
-        let mut single_byte = [0, 1];
+        let mut single_byte = [0];
         return match self.ring_bytes.pop_front() {
             Some(oldest_byte) => {
                 self.actual_adler32.remove(self.ring_bytes.len() + 1, oldest_byte);
@@ -47,13 +57,14 @@ impl<T> RollingChecksum<T> for RollingAdler32<T>
                         // when the reader is empty there are some ring_bytes remaining that have to be drained
                     }
                     Err(_) => {
-                        None
+                        // TODO: log the error when logger is available - even better return Result
+                        return None;
                     }
                 };
                 Some(self.actual_adler32.hash())
             }
             None => {
-                None
+                return None;
             }
         };
     }
