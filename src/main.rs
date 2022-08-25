@@ -65,7 +65,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             Ok(())
         }
         Commands::Delta { signature_file, new_file, delta_file } => {
-            println!("Generating  the delta between {} and {} into {}",
+            println!("Generating the delta between {} and {} into {}",
                      signature_file.display(),
                      new_file.display(),
                      delta_file.display(),

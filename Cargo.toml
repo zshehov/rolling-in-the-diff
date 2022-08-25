@@ -13,3 +13,4 @@ md5 = "0.7.0"
 serde = { version = "1.0.144", features = ["derive"] }
 bincode2 = "2.0.1"
 clap = { version = "3.2.17", features = ["derive"] }
+indicatif = "0.17.0-rc.11"

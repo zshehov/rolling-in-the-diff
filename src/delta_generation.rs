@@ -3,6 +3,7 @@ use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
 use bitvec::bitvec;
+use indicatif::{ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};
 
 use crate::ChunkNumber;
@@ -57,6 +58,9 @@ pub fn generate_delta<'a, R, S>(
     let mut delta = Delta { tokens: Vec::with_capacity(old_signature.chunk_count) };
     let mut left = 0;
 
+    let progress = ProgressBar::new(new_content.len() as u64);
+    progress.set_style(ProgressStyle::default_bar().template("{msg} {bar} {bytes}/{total_bytes}").unwrap());
+    progress.set_message("Going through new content:");
     loop {
         match find_reused_chunk::<R, S>(&old_signature, &new_content[left..]) {
             Some(reused_chunk) => {
@@ -72,6 +76,7 @@ pub fn generate_delta<'a, R, S>(
                     continue;
                 }
                 reused_chunks.set(reused_chunk.chunk_number as usize, true);
+                progress.set_position(left as u64);
             }
             None => {
                 // couldn't find a single match until the end of the new content - finish up the delta
@@ -85,6 +90,7 @@ pub fn generate_delta<'a, R, S>(
                     }
                     delta.tokens.push(Removed(i as ChunkNumber));
                 }
+                progress.finish();
                 return Ok(delta);
             }
         }
