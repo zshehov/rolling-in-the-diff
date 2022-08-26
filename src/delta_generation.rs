@@ -151,6 +151,7 @@ mod test {
     use std::iter::zip;
 
     use adler32::RollingAdler32 as actual_adler32;
+    use test_case::test_case;
 
     use crate::rolling_checksum::rolling_adler32::RollingAdler32;
     use crate::Signature;
@@ -158,17 +159,47 @@ mod test {
 
     use super::*;
 
-    #[test]
-    fn test_generate_delta() {
-        let old_content = [
-            1, 2, 3   /* <- chunk 0 */,
-            4, 5, 6   /* <- chunk 1 */,
-            7, 8, 9   /* <- chunk 2 */,
-            10, 11, 12/* <- chunk 3 */,
-            13        /* <- chunk 4 */];
+    #[test_case(
+    3, & [1, 2, 3, 4, 5, 6], & [0, 1, 2, 4, 5, 6] =>
+    vec ! [
+    Added(& [0, 1, 2]),
+    Reused(1, Md5Sum::hash(& [4, 5, 6])),
+    Removed(0),
+    ]; "chunks are perfectly aligned")]
 
-        let chunk_size = 3;
+    #[test_case(
+    3, & [1, 2, 3, 4, 5], & [0, 1, 2, 4, 5] =>
+    vec ! [
+    Added(& [0, 1, 2]),
+    Reused(1, Md5Sum::hash(& [4, 5])),
+    Removed(0),
+    ];
+    "last chunk is not full")]
 
+    #[test_case(
+    3, & [1, 2, 3, 4, 5, 6], & [4, 5, 6, 1, 2, 3] =>
+    vec ! [
+    Reused(1, Md5Sum::hash(& [4, 5, 6])),
+    Reused(0, Md5Sum::hash(& [1, 2, 3])),
+    ];
+    "full chunks are swapped in the new version")]
+
+    #[test_case(
+    3, & [1, 2, 3, 4, 5], & [4, 5, 1, 2, 3] =>
+    vec ! [
+    Added(& [4, 5]),
+    Reused(0, Md5Sum::hash(& [1, 2, 3])),
+    Removed(1),
+    ];
+    "chunks are swapped in the new version with an non-full chunk")]
+
+    #[test_case(
+    3, & [1, 2, 3], & [] =>
+    vec ! [
+    Removed(0),
+    ];
+    "new content is empty")]
+    fn test_generate_delta(chunk_size: usize, old_content: &'static [u8], new_content: &'static [u8]) -> Vec<DeltaToken<'static, <Md5Sum as StrongHash>::HashType>> {
         let mut signature_map: HashMap<u32, Vec<(<Md5Sum as StrongHash>::HashType, ChunkNumber)>> = HashMap::new();
 
         for (chunk_num, chunk) in old_content.chunks(chunk_size).enumerate() {
@@ -183,25 +214,25 @@ mod test {
             chunk_count: old_content.chunks(chunk_size).len(),
             chunk_size,
         };
+        return generate_delta::<RollingAdler32, Md5Sum>(&signature, &new_content).tokens;
+    }
+
+    #[test]
+    fn test_generate_delta_with_empty_old_signature() {
+        let signature = Signature {
+            checksum_to_hashes: HashMap::<u32, Vec<(<Md5Sum as StrongHash>::HashType, ChunkNumber)>>::new(),
+            chunk_count: 0,
+            chunk_size: 0,
+        };
 
         let new_content = [
-            21, 22, 23 /* <- totally new */,
-            1, 2 /*, 3,   <- modified with deletion */,
-            4, 5, 6    /* <- reused */,
-            /*7, 8, 9     <- removed */
-            10, 11, 200/* <- modified */,
-            13         /* <- the forsaken chunk */];
+            1, 2, 3,
+        ];
 
         let delta = generate_delta::<RollingAdler32, Md5Sum>(&signature, &new_content);
 
         let expected_tokens = vec![
-            Added(&[21, 22, 23, 1, 2]),
-            Reused(1, Md5Sum::hash(&[4, 5, 6])),
-            Added(&[10, 11, 200]),
-            Reused(4, Md5Sum::hash(&[13])),
-            Removed(0),
-            Removed(2),
-            Removed(3),
+            Added(&[1, 2, 3]),
         ];
 
         assert_eq!(delta.tokens.len(), expected_tokens.len());
@@ -213,5 +244,4 @@ mod test {
             );
     }
 }
-
 
