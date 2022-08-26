@@ -14,7 +14,7 @@ use crate::strong_hash::StrongHash;
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
 enum DeltaToken<'a, S> where
-    S: /*Decode + Encode + */ PartialEq + Debug,
+    S: PartialEq + Debug,
 {
     Reused(
         ChunkNumber /* chunk number in old file */,
@@ -74,7 +74,8 @@ pub fn generate_delta<'a, R, S>(
             }
             None => {
                 // couldn't find a single match until the end of the new content - finish up the delta
-                if left < new_content.len() - 1 {
+                // note: empty new_content with [0..] is a valid usage
+                if new_content[left..].len() > 0 {
                     delta.tokens.push(Added(&new_content[left..]));
                 }
                 // fill up all the removed chunks at the end
