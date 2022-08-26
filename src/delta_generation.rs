@@ -75,7 +75,7 @@ pub fn generate_delta<'a, R, S>(
             None => {
                 // couldn't find a single match until the end of the new content - finish up the delta
                 // note: empty new_content with [0..] is a valid usage
-                if new_content[left..].len() > 0 {
+                if !new_content[left..].is_empty() {
                     delta.tokens.push(Added(&new_content[left..]));
                 }
                 // fill up all the removed chunks at the end
@@ -214,7 +214,7 @@ mod test {
             chunk_count: old_content.chunks(chunk_size).len(),
             chunk_size,
         };
-        return generate_delta::<RollingAdler32, Md5Sum>(&signature, &new_content).tokens;
+        return generate_delta::<RollingAdler32, Md5Sum>(&signature, new_content).tokens;
     }
 
     #[test]
