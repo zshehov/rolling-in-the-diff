@@ -16,6 +16,13 @@ pub fn generate_signature<R, S>(content: &[u8]) -> Signature<R::ChecksumType, S:
     <R as RollingChecksum>::ChecksumType: Send + Copy,
     <S as StrongHash>::HashType: Send,
 {
+    if content.is_empty() {
+        return Signature {
+            checksum_to_hashes: HashMap::<R::ChecksumType, Vec<(S::HashType, ChunkNumber)>>::new(),
+            chunk_size: 0,
+            chunk_count: 0,
+        };
+    }
     let chunk_size = determine_chunk_size::<R::ChecksumType, S::HashType>(content.len());
     info!("content len: {} chunk count: {}; chunk size: {}",
         content.len(),
@@ -96,6 +103,7 @@ pub fn determine_chunk_size<R, S>(content_len: usize) -> usize
 #[cfg(test)]
 mod test {
     use adler32::RollingAdler32 as actual_adler32;
+    use test_case::test_case;
 
     use crate::rolling_checksum::rolling_adler32::RollingAdler32;
     use crate::strong_hash::md5::Md5Sum;
@@ -103,12 +111,14 @@ mod test {
 
     use super::*;
 
-    #[test]
-    fn test_generate_signature() {
-        let content = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-
+    #[test_case(10, 1; "when content is small and even")]
+    #[test_case(9, 1; "when content is small and odd")]
+    #[test_case(1 << 10, 2; "when content is big enough for multiple chunks signature")]
+    fn test_generate_signature(content_len: usize, at_least_chunk_count: usize) {
+        let content: Vec<u8> = (0..content_len).map(|x| x as u8).collect();
         let signature = generate_signature::<RollingAdler32, Md5Sum>(&content);
 
+        assert!(signature.chunk_count >= at_least_chunk_count, "{} < {}", signature.chunk_count, at_least_chunk_count);
         for (chunk_number, chunk) in content.chunks(signature.chunk_size).enumerate() {
             let checksum = actual_adler32::from_buffer(chunk).hash();
             assert!(signature.checksum_to_hashes.contains_key(&checksum));
@@ -116,5 +126,44 @@ mod test {
 
             assert!(chunks.contains(&(Md5Sum::hash(chunk), chunk_number as ChunkNumber)))
         }
+    }
+
+    #[test]
+    fn test_generate_signature_of_empty_content() {
+        let content: &[u8] = &[];
+        let signature = generate_signature::<RollingAdler32, Md5Sum>(content);
+        assert_eq!(signature.chunk_count, 0);
+        assert_eq!(signature.chunk_size, 0);
+        assert!(signature.checksum_to_hashes.is_empty());
+    }
+
+    struct DummyRolling {}
+
+    const DUMMY_CHECKSUM: u8 = 69;
+
+    impl RollingChecksum for DummyRolling {
+        type ChecksumType = u8;
+        fn new(_: &[u8]) -> Self { Self {} }
+        fn checksum(&self) -> Self::ChecksumType { DUMMY_CHECKSUM }
+        fn push_byte(&mut self, _: u8) {}
+        fn pop_byte(&mut self, _: u8, _: usize) {}
+    }
+
+    struct DummyHash {}
+
+    impl StrongHash for DummyHash {
+        type HashType = u32;
+        fn hash(_: &[u8]) -> Self::HashType { 420 }
+    }
+
+    #[test]
+    fn test_generate_signature_with_repeating_checksums() {
+        let content = [0; 420];
+
+        let signature = generate_signature::<DummyRolling, DummyHash>(&content);
+
+        assert!(signature.chunk_count > 1);
+        assert_eq!(signature.checksum_to_hashes.keys().len(), 1);
+        assert_eq!(signature.checksum_to_hashes.get(&DUMMY_CHECKSUM).unwrap().len(), signature.chunk_count);
     }
 }
