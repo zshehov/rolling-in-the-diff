@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod signature_generation;
 pub mod delta_generation;
+pub mod patch;
 
 pub mod rolling_checksum;
 pub mod strong_hash;

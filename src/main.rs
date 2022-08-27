@@ -1,4 +1,5 @@
-use std::io::{Read, Write};
+use std::fs::File;
+use std::io::{BufWriter, Read, Write};
 use std::path::PathBuf;
 
 use bincode2::{deserialize, serialize};
@@ -6,11 +7,13 @@ use clap::Parser;
 use env_logger::Env;
 use log::info;
 
-use rolling_in_the_diff::delta_generation::generate_delta;
+use rolling_in_the_diff::delta_generation::{Delta, generate_delta};
+use rolling_in_the_diff::patch::patch;
 use rolling_in_the_diff::rolling_checksum::rolling_adler32::RollingAdler32;
 use rolling_in_the_diff::Signature;
 use rolling_in_the_diff::signature_generation::generate_signature;
 use rolling_in_the_diff::strong_hash::md5::Md5Sum;
+use rolling_in_the_diff::strong_hash::StrongHash;
 
 #[derive(Parser, Debug)]
 #[clap(version, about)]
@@ -42,6 +45,19 @@ enum Commands {
         #[clap(long)]
         /// The resulting delta file
         delta_file: PathBuf,
+    },
+    /// Applies --delta-file=<DELTA_FILE> on top of --old-file=<OLD_FILE> (not in place) and produces --updated_file<UPDATED_FILE>
+    Patch {
+        #[clap(long)]
+        /// The delta file to apply
+        delta_file: PathBuf,
+        #[clap(long)]
+        /// The file the delta is going to be applied on
+        old_file: PathBuf,
+        #[clap(long)]
+        /// The file with the (potentially) updated content
+        updated_file: PathBuf,
+
     },
 }
 
@@ -95,6 +111,27 @@ fn main() -> anyhow::Result<()> {
             let mut delta_file = std::fs::File::create(delta_file)?;
 
             delta_file.write_all(serialize(&delta)?.as_slice())?;
+            Ok(())
+        }
+        Commands::Patch { delta_file, old_file, updated_file } => {
+            info!("Applying delta {} on top of {} into {}",
+                     delta_file.display(),
+                     old_file.display(),
+                     updated_file.display(),
+            );
+
+            let mut old_file = std::fs::File::open(old_file)?;
+            let mut old_file_content = Vec::<u8>::new();
+            old_file.read_to_end(&mut old_file_content)?;
+
+            let mut delta_file = std::fs::File::open(delta_file)?;
+            let mut delta_file_content = Vec::<u8>::new();
+            delta_file.read_to_end(&mut delta_file_content)?;
+
+            let delta: Delta<<Md5Sum as StrongHash>::HashType> = deserialize(delta_file_content.as_slice())?;
+            let out_file = std::fs::File::create(updated_file)?;
+
+            patch::<Md5Sum, BufWriter<File>>(old_file_content.as_slice(), delta, &mut BufWriter::new(out_file))?;
             Ok(())
         }
     };

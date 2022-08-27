@@ -13,7 +13,7 @@ use crate::rolling_checksum::RollingChecksum;
 use crate::strong_hash::StrongHash;
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
-enum DeltaToken<'a, S> where
+pub enum DeltaToken<'a, S> where
     S: PartialEq + Debug,
 {
     Reused(
@@ -31,7 +31,9 @@ pub struct Delta<'a, S> where
     S: Eq + PartialEq + Debug,
 {
     #[serde(borrow)]
-    tokens: Vec<DeltaToken<'a, S>>,
+    pub tokens: Vec<DeltaToken<'a, S>>,
+    pub chunk_size: u64,
+    pub base_content_version: u64,
 }
 
 pub fn generate_delta<'a, R, S>(
@@ -45,7 +47,11 @@ pub fn generate_delta<'a, R, S>(
 {
     let mut reused_chunks = bitvec![0; old_signature.chunk_count];
 
-    let mut delta = Delta { tokens: Vec::with_capacity(old_signature.chunk_count) };
+    let mut delta = Delta {
+        tokens: Vec::with_capacity(old_signature.chunk_count),
+        chunk_size: old_signature.chunk_size as u64,
+        base_content_version: 2,
+    };
     let mut left = 0;
 
     let progress = ProgressBar::new(new_content.len() as u64);
@@ -166,7 +172,6 @@ mod test {
     Reused(1, Md5Sum::hash(& [4, 5, 6])),
     Removed(0),
     ]; "chunks are perfectly aligned")]
-
     #[test_case(
     3, & [1, 2, 3, 4, 5], & [0, 1, 2, 4, 5] =>
     vec ! [
@@ -175,7 +180,6 @@ mod test {
     Removed(0),
     ];
     "last chunk is not full")]
-
     #[test_case(
     3, & [1, 2, 3, 4, 5, 6], & [4, 5, 6, 1, 2, 3] =>
     vec ! [
@@ -183,7 +187,6 @@ mod test {
     Reused(0, Md5Sum::hash(& [1, 2, 3])),
     ];
     "full chunks are swapped in the new version")]
-
     #[test_case(
     3, & [1, 2, 3, 4, 5], & [4, 5, 1, 2, 3] =>
     vec ! [
@@ -192,7 +195,6 @@ mod test {
     Removed(1),
     ];
     "chunks are swapped in the new version with an non-full chunk")]
-
     #[test_case(
     3, & [1, 2, 3], & [] =>
     vec ! [
