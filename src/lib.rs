@@ -5,6 +5,10 @@ use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 
+const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
+// unwrap_or as a const fn is not stable yet
+const DEFAULT_VERSION: &'static str = "none";
+
 pub mod signature_generation;
 pub mod delta_generation;
 pub mod patch;
@@ -22,6 +26,7 @@ pub struct Signature<W, S> where
     checksum_to_hashes: HashMap<W, Vec<(S, ChunkNumber)>>,
     chunk_size: usize,
     chunk_count: usize,
+    version: String,
 }
 
 impl<W, S> Signature<W, S> where

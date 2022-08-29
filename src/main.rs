@@ -131,7 +131,7 @@ fn main() -> anyhow::Result<()> {
             let delta: Delta<<Md5Sum as StrongHash>::HashType> = deserialize(delta_file_content.as_slice())?;
             let out_file = std::fs::File::create(updated_file)?;
 
-            patch::<Md5Sum, BufWriter<File>>(old_file_content.as_slice(), delta, &mut BufWriter::new(out_file))?;
+            patch::<Md5Sum, BufWriter<File>>(old_file_content.as_slice(), delta, &mut BufWriter::new(out_file));
             Ok(())
         }
     };

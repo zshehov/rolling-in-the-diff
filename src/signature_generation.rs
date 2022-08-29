@@ -16,11 +16,13 @@ pub fn generate_signature<R, S>(content: &[u8]) -> Signature<R::ChecksumType, S:
     <R as RollingChecksum>::ChecksumType: Send + Copy,
     <S as StrongHash>::HashType: Send,
 {
+    let version = crate::VERSION.unwrap_or(crate::DEFAULT_VERSION).to_string();
     if content.is_empty() {
         return Signature {
             checksum_to_hashes: HashMap::<R::ChecksumType, Vec<(S::HashType, ChunkNumber)>>::new(),
             chunk_size: 0,
             chunk_count: 0,
+            version,
         };
     }
     let chunk_size = determine_chunk_size::<R::ChecksumType, S::HashType>(content.len());
@@ -56,6 +58,7 @@ pub fn generate_signature<R, S>(content: &[u8]) -> Signature<R::ChecksumType, S:
         checksum_to_hashes: signature_map,
         chunk_size,
         chunk_count,
+        version,
     }
 }
 

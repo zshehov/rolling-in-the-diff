@@ -7,7 +7,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 
-use crate::ChunkNumber;
+use crate::{ChunkNumber, DEFAULT_VERSION};
 use crate::delta_generation::DeltaToken::{Added, Removed, Reused};
 use crate::rolling_checksum::RollingChecksum;
 use crate::strong_hash::StrongHash;
@@ -33,7 +33,7 @@ pub struct Delta<'a, S> where
     #[serde(borrow)]
     pub tokens: Vec<DeltaToken<'a, S>>,
     pub chunk_size: u64,
-    pub base_content_version: u64,
+    pub version: String,
 }
 
 pub fn generate_delta<'a, R, S>(
@@ -45,12 +45,19 @@ pub fn generate_delta<'a, R, S>(
     S: StrongHash,
     <S as StrongHash>::HashType: Eq,
 {
+    let version = crate::VERSION.unwrap_or(DEFAULT_VERSION).to_string();
+    if old_signature.version != version {
+        todo!("nicer error handling: {} {}",
+              old_signature.version.to_string(),
+              version.to_string());
+    }
+
     let mut reused_chunks = bitvec![0; old_signature.chunk_count];
 
     let mut delta = Delta {
         tokens: Vec::with_capacity(old_signature.chunk_count),
         chunk_size: old_signature.chunk_size as u64,
-        base_content_version: 2,
+        version,
     };
     let mut left = 0;
 
@@ -215,6 +222,7 @@ mod test {
             checksum_to_hashes: signature_map,
             chunk_count: old_content.chunks(chunk_size).len(),
             chunk_size,
+            version: "",
         };
         return generate_delta::<RollingAdler32, Md5Sum>(&signature, new_content).tokens;
     }
@@ -225,6 +233,7 @@ mod test {
             checksum_to_hashes: HashMap::<u32, Vec<(<Md5Sum as StrongHash>::HashType, ChunkNumber)>>::new(),
             chunk_count: 0,
             chunk_size: 0,
+            version: "",
         };
 
         let new_content = [
