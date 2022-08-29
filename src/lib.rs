@@ -35,7 +35,9 @@ where
     W: Eq + Hash + PartialEq,
     S: PartialEq + Copy,
 {
-    fn quick_query(&self, weak_checksum: &W) -> Option<&Vec<(S, ChunkNumber)>> {
-        self.checksum_to_hashes.get(weak_checksum)
+    fn quick_query(&self, weak_checksum: &W) -> Option<&[(S, ChunkNumber)]> {
+        self.checksum_to_hashes
+            .get(weak_checksum)
+            .map(|x| x.as_slice())
     }
 }
