@@ -39,7 +39,10 @@ mod tests {
 
         let mut left = 0;
         for right in window_size..data.len() {
-            assert_eq!(rolling_checksum.checksum(), adler32::adler32(&data[left..right]).unwrap());
+            assert_eq!(
+                rolling_checksum.checksum(),
+                adler32::adler32(&data[left..right]).unwrap()
+            );
             rolling_checksum.pop_byte(data[left], window_size);
             rolling_checksum.push_byte(data[right]);
             left += 1;
@@ -47,7 +50,10 @@ mod tests {
 
         // slide the left part of the window until all the data is consumed
         while left < data.len() {
-            assert_eq!(rolling_checksum.checksum(), adler32::adler32(&data[left..]).unwrap());
+            assert_eq!(
+                rolling_checksum.checksum(),
+                adler32::adler32(&data[left..]).unwrap()
+            );
             rolling_checksum.pop_byte(data[left], data.len() - left);
             left += 1;
         }

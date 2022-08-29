@@ -9,9 +9,9 @@ const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 // unwrap_or as a const fn is not stable yet
 const DEFAULT_VERSION: &str = "none";
 
-pub mod signature_generation;
 pub mod delta_generation;
 pub mod patch;
+pub mod signature_generation;
 
 pub mod rolling_checksum;
 pub mod strong_hash;
@@ -19,7 +19,8 @@ pub mod strong_hash;
 pub type ChunkNumber = u64;
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Signature<W, S> where
+pub struct Signature<W, S>
+where
     W: Eq + Hash + PartialEq,
     S: PartialEq + Copy,
 {
@@ -29,7 +30,8 @@ pub struct Signature<W, S> where
     version: String,
 }
 
-impl<W, S> Signature<W, S> where
+impl<W, S> Signature<W, S>
+where
     W: Eq + Hash + PartialEq,
     S: PartialEq + Copy,
 {
@@ -37,4 +39,3 @@ impl<W, S> Signature<W, S> where
         self.checksum_to_hashes.get(weak_checksum)
     }
 }
-

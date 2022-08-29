@@ -12,4 +12,3 @@ impl StrongHash for Md5Sum {
         md5::compute(data).into()
     }
 }
-

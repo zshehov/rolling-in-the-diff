@@ -7,27 +7,27 @@ use indicatif::{ProgressBar, ProgressStyle};
 use log::{error, info};
 use serde::{Deserialize, Serialize};
 
-use crate::{ChunkNumber, DEFAULT_VERSION};
 use crate::delta_generation::DeltaToken::{Added, Removed, Reused};
 use crate::rolling_checksum::RollingChecksum;
 use crate::strong_hash::StrongHash;
+use crate::{ChunkNumber, DEFAULT_VERSION};
 
 #[derive(PartialEq, Eq, Serialize, Deserialize, Debug)]
-pub enum DeltaToken<'a, S> where
+pub enum DeltaToken<'a, S>
+where
     S: PartialEq + Debug,
 {
     Reused(
-        ChunkNumber /* chunk number in old file */,
-        S /* strong hash over the content for the patch operation to use*/,
+        ChunkNumber, /* chunk number in old file */
+        S,           /* strong hash over the content for the patch operation to use*/
     ),
     Added(&'a [u8] /* new data */),
-    Removed(
-        ChunkNumber,
-    ),
+    Removed(ChunkNumber),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Delta<'a, S> where
+pub struct Delta<'a, S>
+where
     S: Eq + PartialEq + Debug,
 {
     #[serde(borrow)]
@@ -39,7 +39,8 @@ pub struct Delta<'a, S> where
 pub fn generate_delta<'a, R, S>(
     old_signature: &crate::Signature<R::ChecksumType, S::HashType>,
     new_content: &'a [u8],
-) -> Delta<'a, S::HashType> where
+) -> Delta<'a, S::HashType>
+where
     R: RollingChecksum,
     <R as RollingChecksum>::ChecksumType: Eq + Hash,
     S: StrongHash,
@@ -47,9 +48,11 @@ pub fn generate_delta<'a, R, S>(
 {
     let version = crate::VERSION.unwrap_or(DEFAULT_VERSION).to_string();
     if old_signature.version != version {
-        todo!("nicer error handling: {} {}",
-              old_signature.version.to_string(),
-              version);
+        todo!(
+            "nicer error handling: {} {}",
+            old_signature.version.to_string(),
+            version
+        );
     }
 
     let mut reused_chunks = bitvec![0; old_signature.chunk_count];
@@ -62,23 +65,33 @@ pub fn generate_delta<'a, R, S>(
     let mut left = 0;
 
     let progress = ProgressBar::new(new_content.len() as u64);
-    progress.set_style(ProgressStyle::default_bar().template("{msg} {bar} {bytes}/{total_bytes}").unwrap());
+    progress.set_style(
+        ProgressStyle::default_bar()
+            .template("{msg} {bar} {bytes}/{total_bytes}")
+            .unwrap(),
+    );
     progress.set_message("Going through new content:");
     let mut reused_count = 0;
     loop {
         match find_reused_chunk::<R, S>(old_signature, &new_content[left..]) {
             Some(reused_chunk) => {
                 if reused_chunk.bytes_until_reused > 0 {
-                    delta.tokens.push(Added(&new_content[left..left + reused_chunk.bytes_until_reused]));
+                    delta.tokens.push(Added(
+                        &new_content[left..left + reused_chunk.bytes_until_reused],
+                    ));
                     left += reused_chunk.bytes_until_reused;
                 }
-                delta.tokens.push(Reused(reused_chunk.chunk_number, reused_chunk.chunk_strong_hash));
+                delta.tokens.push(Reused(
+                    reused_chunk.chunk_number,
+                    reused_chunk.chunk_strong_hash,
+                ));
                 left += reused_chunk.reused_chunk_size;
                 if reused_chunk.chunk_number >= old_signature.chunk_count as ChunkNumber {
                     // that might very well mean an invalid signature file
-                    error!("signature contains a chunk number out of the chunk count: {} >= {}",
-                        reused_chunk.chunk_number,
-                        old_signature.chunk_count);
+                    error!(
+                        "signature contains a chunk number out of the chunk count: {} >= {}",
+                        reused_chunk.chunk_number, old_signature.chunk_count
+                    );
                     continue;
                 }
                 reused_chunks.set(reused_chunk.chunk_number as usize, true);
@@ -116,7 +129,8 @@ struct ReusedChunkDescriptor<T> {
 fn find_reused_chunk<R, S>(
     old_signature: &crate::Signature<R::ChecksumType, S::HashType>,
     new_content: &[u8],
-) -> Option<ReusedChunkDescriptor<S::HashType>> where
+) -> Option<ReusedChunkDescriptor<S::HashType>>
+where
     R: RollingChecksum,
     <R as RollingChecksum>::ChecksumType: Eq + Hash,
     S: StrongHash,
@@ -167,8 +181,8 @@ mod test {
     use test_case::test_case;
 
     use crate::rolling_checksum::rolling_adler32::RollingAdler32;
-    use crate::Signature;
     use crate::strong_hash::md5::Md5Sum;
+    use crate::Signature;
 
     use super::*;
 
@@ -208,14 +222,22 @@ mod test {
     Removed(0),
     ];
     "new content is empty")]
-    fn test_generate_delta(chunk_size: usize, old_content: &'static [u8], new_content: &'static [u8]) -> Vec<DeltaToken<'static, <Md5Sum as StrongHash>::HashType>> {
-        let mut signature_map: HashMap<u32, Vec<(<Md5Sum as StrongHash>::HashType, ChunkNumber)>> = HashMap::new();
+    fn test_generate_delta(
+        chunk_size: usize,
+        old_content: &'static [u8],
+        new_content: &'static [u8],
+    ) -> Vec<DeltaToken<'static, <Md5Sum as StrongHash>::HashType>> {
+        let mut signature_map: HashMap<u32, Vec<(<Md5Sum as StrongHash>::HashType, ChunkNumber)>> =
+            HashMap::new();
 
         for (chunk_num, chunk) in old_content.chunks(chunk_size).enumerate() {
-            assert_eq!(signature_map.insert(
-                actual_adler32::from_buffer(chunk).hash(),
-                vec![(Md5Sum::hash(chunk), chunk_num as ChunkNumber)],
-            ), None);
+            assert_eq!(
+                signature_map.insert(
+                    actual_adler32::from_buffer(chunk).hash(),
+                    vec![(Md5Sum::hash(chunk), chunk_num as ChunkNumber)],
+                ),
+                None
+            );
         }
 
         let signature = Signature {
@@ -230,29 +252,21 @@ mod test {
     #[test]
     fn test_generate_delta_with_empty_old_signature() {
         let signature = Signature {
-            checksum_to_hashes: HashMap::<u32, Vec<(<Md5Sum as StrongHash>::HashType, ChunkNumber)>>::new(),
+            checksum_to_hashes:
+                HashMap::<u32, Vec<(<Md5Sum as StrongHash>::HashType, ChunkNumber)>>::new(),
             chunk_count: 0,
             chunk_size: 0,
             version: String::from(""),
         };
 
-        let new_content = [
-            1, 2, 3,
-        ];
+        let new_content = [1, 2, 3];
 
         let delta = generate_delta::<RollingAdler32, Md5Sum>(&signature, &new_content);
 
-        let expected_tokens = vec![
-            Added(&[1, 2, 3]),
-        ];
+        let expected_tokens = vec![Added(&[1, 2, 3])];
 
         assert_eq!(delta.tokens.len(), expected_tokens.len());
-        zip(delta.tokens.iter(), expected_tokens.iter()).
-            for_each(
-                |(actual, expected)| {
-                    assert_eq!(actual, expected)
-                }
-            );
+        zip(delta.tokens.iter(), expected_tokens.iter())
+            .for_each(|(actual, expected)| assert_eq!(actual, expected));
     }
 }
-

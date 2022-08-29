@@ -7,4 +7,3 @@ pub trait StrongHash {
 
     fn hash(data: &[u8]) -> Self::HashType;
 }
-

@@ -5,11 +5,12 @@ use log::info;
 use rayon::iter::{IndexedParallelIterator, ParallelIterator};
 use rayon::slice::ParallelSlice;
 
-use crate::{ChunkNumber, Signature};
 use crate::rolling_checksum::RollingChecksum;
 use crate::strong_hash::StrongHash;
+use crate::{ChunkNumber, Signature};
 
-pub fn generate_signature<R, S>(content: &[u8]) -> Signature<R::ChecksumType, S::HashType> where
+pub fn generate_signature<R, S>(content: &[u8]) -> Signature<R::ChecksumType, S::HashType>
+where
     R: RollingChecksum,
     <R as RollingChecksum>::ChecksumType: Eq + Hash,
     S: StrongHash,
@@ -26,22 +27,23 @@ pub fn generate_signature<R, S>(content: &[u8]) -> Signature<R::ChecksumType, S:
         };
     }
     let chunk_size = determine_chunk_size::<R::ChecksumType, S::HashType>(content.len());
-    info!("content len: {} chunk count: {}; chunk size: {}",
+    info!(
+        "content len: {} chunk count: {}; chunk size: {}",
         content.len(),
-        (content.len() as f64/(chunk_size as f64)).ceil(),
-        chunk_size);
+        (content.len() as f64 / (chunk_size as f64)).ceil(),
+        chunk_size
+    );
 
     // calculate checksum + hash for each chunk in parallel
-    let checksum_hash_tuples: Vec<(usize, R::ChecksumType, S::HashType)> =
-        content
-            .par_chunks(chunk_size)
-            .enumerate()
-            .map(|(chunk_number, chunk)| {
-                let checksum = R::new(chunk).checksum();
-                let hash = S::hash(chunk);
-                (chunk_number, checksum, hash)
-            })
-            .collect();
+    let checksum_hash_tuples: Vec<(usize, R::ChecksumType, S::HashType)> = content
+        .par_chunks(chunk_size)
+        .enumerate()
+        .map(|(chunk_number, chunk)| {
+            let checksum = R::new(chunk).checksum();
+            let hash = S::hash(chunk);
+            (chunk_number, checksum, hash)
+        })
+        .collect();
 
     let mut signature_map: HashMap<R::ChecksumType, Vec<(S::HashType, ChunkNumber)>> =
         HashMap::with_capacity(checksum_hash_tuples.len());
@@ -50,7 +52,8 @@ pub fn generate_signature<R, S>(content: &[u8]) -> Signature<R::ChecksumType, S:
     // go through all chunks sequentially - if this is too slow,
     // concurrent hash maps are an option that might speed things up
     for (chunk_number, checksum, hash) in checksum_hash_tuples {
-        signature_map.entry(checksum)
+        signature_map
+            .entry(checksum)
             .or_insert_with(|| Vec::with_capacity(1))
             .push((hash, chunk_number as ChunkNumber));
     }
@@ -81,9 +84,9 @@ const MAGIC_CHUNK_COUNT: usize = (1 << 10) << 2;
 /// // can fit 20 overheads -> the next smaller power of 2 == 16
 /// assert_eq!(determine_chunk_size::<u8, u8>(content_len), content_len / 16);
 /// ```
-pub fn determine_chunk_size<R, S>(content_len: usize) -> usize
-{
-    let overhead_per_chunk = std::mem::size_of::<R>() + std::mem::size_of::<S>() + std::mem::size_of::<ChunkNumber>();
+pub fn determine_chunk_size<R, S>(content_len: usize) -> usize {
+    let overhead_per_chunk =
+        std::mem::size_of::<R>() + std::mem::size_of::<S>() + std::mem::size_of::<ChunkNumber>();
 
     let mut chunk_count = MAGIC_CHUNK_COUNT;
     while chunk_count > 0 {
@@ -122,7 +125,12 @@ mod test {
         let content: Vec<u8> = (0..content_len).map(|x| x as u8).collect();
         let signature = generate_signature::<RollingAdler32, Md5Sum>(&content);
 
-        assert!(signature.chunk_count >= at_least_chunk_count, "{} < {}", signature.chunk_count, at_least_chunk_count);
+        assert!(
+            signature.chunk_count >= at_least_chunk_count,
+            "{} < {}",
+            signature.chunk_count,
+            at_least_chunk_count
+        );
         for (chunk_number, chunk) in content.chunks(signature.chunk_size).enumerate() {
             let checksum = actual_adler32::from_buffer(chunk).hash();
             assert!(signature.checksum_to_hashes.contains_key(&checksum));
@@ -147,8 +155,12 @@ mod test {
 
     impl RollingChecksum for DummyRolling {
         type ChecksumType = u8;
-        fn new(_: &[u8]) -> Self { Self {} }
-        fn checksum(&self) -> Self::ChecksumType { DUMMY_CHECKSUM }
+        fn new(_: &[u8]) -> Self {
+            Self {}
+        }
+        fn checksum(&self) -> Self::ChecksumType {
+            DUMMY_CHECKSUM
+        }
         fn push_byte(&mut self, _: u8) {}
         fn pop_byte(&mut self, _: u8, _: usize) {}
     }
@@ -157,7 +169,9 @@ mod test {
 
     impl StrongHash for DummyHash {
         type HashType = u32;
-        fn hash(_: &[u8]) -> Self::HashType { 420 }
+        fn hash(_: &[u8]) -> Self::HashType {
+            420
+        }
     }
 
     #[test]
@@ -168,6 +182,13 @@ mod test {
 
         assert!(signature.chunk_count > 1);
         assert_eq!(signature.checksum_to_hashes.keys().len(), 1);
-        assert_eq!(signature.checksum_to_hashes.get(&DUMMY_CHECKSUM).unwrap().len(), signature.chunk_count);
+        assert_eq!(
+            signature
+                .checksum_to_hashes
+                .get(&DUMMY_CHECKSUM)
+                .unwrap()
+                .len(),
+            signature.chunk_count
+        );
     }
 }
