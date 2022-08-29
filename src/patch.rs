@@ -59,7 +59,7 @@ pub fn patch<S, W>(old_content: &[u8], delta: Delta<S::HashType>, out: &mut W) w
 
 impl<S: Debug> Display for PatchError<S> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        return match self {
+        match self {
             PatchError::ChunkOutOfBound { chunk_num, chunk_size, old_content_len } => {
                 write!(f, "chunk out of bound for chunk {}: {} {}", chunk_num, chunk_size, old_content_len)
             }
@@ -69,7 +69,7 @@ impl<S: Debug> Display for PatchError<S> {
             PatchError::OutputFailure(..) => {
                 write!(f, "failed on io")
             }
-        };
+        }
     }
 }
 
@@ -85,6 +85,6 @@ impl<S: Debug> Error for PatchError<S> {
 
 impl<S: Debug + Clone> From<std::io::Error> for PatchError<S> {
     fn from(err: std::io::Error) -> Self {
-        return PatchError::OutputFailure(err);
+        PatchError::OutputFailure(err)
     }
 }

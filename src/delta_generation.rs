@@ -49,7 +49,7 @@ pub fn generate_delta<'a, R, S>(
     if old_signature.version != version {
         todo!("nicer error handling: {} {}",
               old_signature.version.to_string(),
-              version.to_string());
+              version);
     }
 
     let mut reused_chunks = bitvec![0; old_signature.chunk_count];

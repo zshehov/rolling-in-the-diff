@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 // unwrap_or as a const fn is not stable yet
-const DEFAULT_VERSION: &'static str = "none";
+const DEFAULT_VERSION: &str = "none";
 
 pub mod signature_generation;
 pub mod delta_generation;
