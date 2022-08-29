@@ -182,7 +182,7 @@ mod test {
 
     use crate::rolling_checksum::rolling_adler32::RollingAdler32;
     use crate::strong_hash::md5::Md5Sum;
-    use crate::Signature;
+    use crate::{Signature, VERSION};
 
     use super::*;
 
@@ -244,7 +244,7 @@ mod test {
             checksum_to_hashes: signature_map,
             chunk_count: old_content.chunks(chunk_size).len(),
             chunk_size,
-            version: String::from(""),
+            version: VERSION.unwrap_or(DEFAULT_VERSION).to_string(),
         };
         return generate_delta::<RollingAdler32, Md5Sum>(&signature, new_content).tokens;
     }
@@ -256,7 +256,7 @@ mod test {
                 HashMap::<u32, Vec<(<Md5Sum as StrongHash>::HashType, ChunkNumber)>>::new(),
             chunk_count: 0,
             chunk_size: 0,
-            version: String::from(""),
+            version: VERSION.unwrap_or(DEFAULT_VERSION).to_string(),
         };
 
         let new_content = [1, 2, 3];
