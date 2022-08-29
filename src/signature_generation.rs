@@ -50,8 +50,9 @@ pub fn generate_signature<R, S>(content: &[u8]) -> Signature<R::ChecksumType, S:
     // go through all chunks sequentially - if this is too slow,
     // concurrent hash maps are an option that might speed things up
     for (chunk_number, checksum, hash) in checksum_hash_tuples {
-        signature_map.entry(checksum).or_insert_with(|| Vec::with_capacity(1));
-        signature_map.get_mut(&checksum).unwrap().push((hash, chunk_number as ChunkNumber));
+        signature_map.entry(checksum)
+            .or_insert_with(|| Vec::with_capacity(1))
+            .push((hash, chunk_number as ChunkNumber));
     }
 
     Signature {

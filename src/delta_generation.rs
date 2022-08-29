@@ -222,7 +222,7 @@ mod test {
             checksum_to_hashes: signature_map,
             chunk_count: old_content.chunks(chunk_size).len(),
             chunk_size,
-            version: "",
+            version: String::from(""),
         };
         return generate_delta::<RollingAdler32, Md5Sum>(&signature, new_content).tokens;
     }
@@ -233,7 +233,7 @@ mod test {
             checksum_to_hashes: HashMap::<u32, Vec<(<Md5Sum as StrongHash>::HashType, ChunkNumber)>>::new(),
             chunk_count: 0,
             chunk_size: 0,
-            version: "",
+            version: String::from(""),
         };
 
         let new_content = [
