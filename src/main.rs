@@ -75,11 +75,11 @@ fn main() -> anyhow::Result<()> {
                 signature_file.display()
             );
 
-            let mut old_file = std::fs::File::open(old_file)?;
+            let mut old_file = File::open(old_file)?;
             let mut old_file_content = Vec::<u8>::new();
             old_file.read_to_end(&mut old_file_content)?;
 
-            let mut signature_file = std::fs::File::create(signature_file)?;
+            let mut signature_file = File::create(signature_file)?;
 
             let signature = generate_signature::<RollingAdler32, Md5Sum>(&old_file_content);
 
@@ -98,16 +98,16 @@ fn main() -> anyhow::Result<()> {
                 delta_file.display(),
             );
 
-            let mut signature_file = std::fs::File::open(signature_file)?;
+            let mut signature_file = File::open(signature_file)?;
             let mut signature_file_content = Vec::<u8>::new();
             signature_file.read_to_end(&mut signature_file_content)?;
 
             let signature: Signature<
                 <RollingAdler32 as rolling_in_the_diff::rolling_checksum::RollingChecksum>::ChecksumType,
-                <Md5Sum as rolling_in_the_diff::strong_hash::StrongHash>::HashType
+                <Md5Sum as StrongHash>::HashType
             > = deserialize(signature_file_content.as_slice())?;
 
-            let mut new_file = std::fs::File::open(new_file)?;
+            let mut new_file = File::open(new_file)?;
             let mut new_file_content = Vec::<u8>::new();
             new_file.read_to_end(&mut new_file_content)?;
 
@@ -116,7 +116,7 @@ fn main() -> anyhow::Result<()> {
             let delta =
                 generate_delta::<RollingAdler32, Md5Sum>(&signature, new_file_content.as_slice());
 
-            let mut delta_file = std::fs::File::create(delta_file)?;
+            let mut delta_file = File::create(delta_file)?;
 
             delta_file.write_all(serialize(&delta)?.as_slice())?;
             Ok(())
@@ -133,17 +133,17 @@ fn main() -> anyhow::Result<()> {
                 updated_file.display(),
             );
 
-            let mut old_file = std::fs::File::open(old_file)?;
+            let mut old_file = File::open(old_file)?;
             let mut old_file_content = Vec::<u8>::new();
             old_file.read_to_end(&mut old_file_content)?;
 
-            let mut delta_file = std::fs::File::open(delta_file)?;
+            let mut delta_file = File::open(delta_file)?;
             let mut delta_file_content = Vec::<u8>::new();
             delta_file.read_to_end(&mut delta_file_content)?;
 
             let delta: Delta<<Md5Sum as StrongHash>::HashType> =
                 deserialize(delta_file_content.as_slice())?;
-            let out_file = std::fs::File::create(updated_file)?;
+            let out_file = File::create(updated_file)?;
 
             patch::<Md5Sum, BufWriter<File>>(
                 old_file_content.as_slice(),
