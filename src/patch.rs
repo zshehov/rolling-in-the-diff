@@ -1,4 +1,4 @@
-use std::fmt::{Debug};
+use std::fmt::Debug;
 use std::io::Write;
 
 use log::debug;
@@ -12,9 +12,9 @@ pub fn patch<S, W>(
     delta: Delta<S::HashType>,
     out: &mut W,
 ) -> Result<(), PatchError>
-    where
-        S: StrongHash,
-        W: Write,
+where
+    S: StrongHash,
+    W: Write,
 {
     for token in delta.tokens {
         match token {
@@ -30,7 +30,7 @@ pub fn patch<S, W>(
 
                 if S::hash(chunk) != hash {
                     return Err(PatchError::ChunkHashMismatch {
-                        chunk_num: chunk_number
+                        chunk_num: chunk_number,
                     });
                 }
 
@@ -44,7 +44,7 @@ pub fn patch<S, W>(
             }
         }
     }
-    return Ok(());
+    Ok(())
 }
 
 #[derive(Error, Debug)]
@@ -56,9 +56,7 @@ pub enum PatchError {
         old_content_len: u64,
     },
     #[error("hash mismatch on chunk {chunk_num}")]
-    ChunkHashMismatch {
-        chunk_num: u64,
-    },
+    ChunkHashMismatch { chunk_num: u64 },
     #[error("output error")]
     OutputFailure(#[from] std::io::Error),
 }

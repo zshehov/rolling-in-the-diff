@@ -7,13 +7,13 @@ use clap::Parser;
 use env_logger::Env;
 use log::{info, warn};
 
-use rolling_in_the_diff::{Signature, VERSION};
-use rolling_in_the_diff::delta_generation::{Delta, generate_delta};
+use rolling_in_the_diff::delta_generation::{generate_delta, Delta};
 use rolling_in_the_diff::patch::patch;
 use rolling_in_the_diff::rolling_checksum::rolling_adler32::RollingAdler32;
 use rolling_in_the_diff::signature_generation::generate_signature;
 use rolling_in_the_diff::strong_hash::md5::Md5Sum;
 use rolling_in_the_diff::strong_hash::StrongHash;
+use rolling_in_the_diff::{Signature, VERSION};
 
 #[derive(Parser, Debug)]
 #[clap(version, about)]
@@ -115,9 +115,11 @@ fn main() -> anyhow::Result<()> {
 
             if VERSION.unwrap_or("") != signature.version {
                 // TODO: rather introduce a semver check here
-                warn!("signature was built with a different version of the tool: {} {}",
+                warn!(
+                    "signature was built with a different version of the tool: {} {}",
                     VERSION.unwrap_or(""),
-                    signature.version);
+                    signature.version
+                );
             }
 
             let delta =
@@ -154,9 +156,11 @@ fn main() -> anyhow::Result<()> {
 
             if VERSION.unwrap_or("") != delta.version {
                 // TODO: rather introduce a semver check here
-                warn!("delta was built with a different version of the tool: {} {}",
+                warn!(
+                    "delta was built with a different version of the tool: {} {}",
                     VERSION.unwrap_or(""),
-                    delta.version);
+                    delta.version
+                );
             }
 
             patch::<Md5Sum, BufWriter<File>>(
