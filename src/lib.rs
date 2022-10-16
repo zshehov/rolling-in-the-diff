@@ -5,7 +5,7 @@ use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 
-const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
+pub const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 // unwrap_or as a const fn is not stable yet
 const DEFAULT_VERSION: &str = "none";
 
@@ -27,7 +27,7 @@ where
     checksum_to_hashes: HashMap<W, Vec<(S, ChunkNumber)>>,
     chunk_size: usize,
     chunk_count: usize,
-    version: String,
+    pub version: String,
 }
 
 impl<W, S> Signature<W, S>

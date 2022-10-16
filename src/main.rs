@@ -5,12 +5,12 @@ use std::path::PathBuf;
 use bincode2::{deserialize, serialize};
 use clap::Parser;
 use env_logger::Env;
-use log::info;
+use log::{info, warn};
 
+use rolling_in_the_diff::{Signature, VERSION};
 use rolling_in_the_diff::delta_generation::{Delta, generate_delta};
 use rolling_in_the_diff::patch::patch;
 use rolling_in_the_diff::rolling_checksum::rolling_adler32::RollingAdler32;
-use rolling_in_the_diff::Signature;
 use rolling_in_the_diff::signature_generation::generate_signature;
 use rolling_in_the_diff::strong_hash::md5::Md5Sum;
 use rolling_in_the_diff::strong_hash::StrongHash;
@@ -113,6 +113,13 @@ fn main() -> anyhow::Result<()> {
 
             // TODO: signature_file and new_file processing should be done in separate threads
 
+            if VERSION.unwrap_or("") != signature.version {
+                // TODO: rather introduce a semver check here
+                warn!("signature was built with a different version of the tool: {} {}",
+                    VERSION.unwrap_or(""),
+                    signature.version);
+            }
+
             let delta =
                 generate_delta::<RollingAdler32, Md5Sum>(&signature, new_file_content.as_slice());
 
@@ -144,6 +151,13 @@ fn main() -> anyhow::Result<()> {
             let delta: Delta<<Md5Sum as StrongHash>::HashType> =
                 deserialize(delta_file_content.as_slice())?;
             let out_file = File::create(updated_file)?;
+
+            if VERSION.unwrap_or("") != delta.version {
+                // TODO: rather introduce a semver check here
+                warn!("delta was built with a different version of the tool: {} {}",
+                    VERSION.unwrap_or(""),
+                    delta.version);
+            }
 
             patch::<Md5Sum, BufWriter<File>>(
                 old_file_content.as_slice(),
