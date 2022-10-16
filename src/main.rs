@@ -7,13 +7,13 @@ use clap::Parser;
 use env_logger::Env;
 use log::info;
 
-use rolling_in_the_diff::delta_generation::{generate_delta, Delta};
+use rolling_in_the_diff::delta_generation::{Delta, generate_delta};
 use rolling_in_the_diff::patch::patch;
 use rolling_in_the_diff::rolling_checksum::rolling_adler32::RollingAdler32;
+use rolling_in_the_diff::Signature;
 use rolling_in_the_diff::signature_generation::generate_signature;
 use rolling_in_the_diff::strong_hash::md5::Md5Sum;
 use rolling_in_the_diff::strong_hash::StrongHash;
-use rolling_in_the_diff::Signature;
 
 #[derive(Parser, Debug)]
 #[clap(version, about)]
@@ -149,7 +149,7 @@ fn main() -> anyhow::Result<()> {
                 old_file_content.as_slice(),
                 delta,
                 &mut BufWriter::new(out_file),
-            );
+            )?;
             Ok(())
         }
     };
